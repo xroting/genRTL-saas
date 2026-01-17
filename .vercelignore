@@ -1,0 +1,39 @@
+# Specstory history (can cause filename length issues)
+.specstory/
+
+# Development files
+.cursor/
+.claude/
+
+# Local environment
+.env.local
+
+# Node modules (already excluded by default)
+node_modules/
+
+# Build output (already excluded by default)
+.next/
+out/
+
+# Documentation that's not needed in production
+*.md
+!README.md
+
+# Test files
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+
+# Mobile apps
+mobile-app/
+android-app/
+
+# Other documentation
+AUTHENTICATION_*.md
+API_AUTHENTICATION_*.md
+MOBILE_*.md
+SEO_*.md
+*_SETUP*.md
+*_GUIDE*.md
+DEPLOYMENT_*.md

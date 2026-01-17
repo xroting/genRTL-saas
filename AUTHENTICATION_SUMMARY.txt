@@ -1,0 +1,235 @@
+================================================================================
+  API 认证实现全面审查 - 最终总结
+================================================================================
+
+审查日期：2025-11-26
+审查范围：图片生成功能涉及的所有 API 端点
+审查专注：Bearer Token 认证支持（移动端）和 Cookie 认证（Web 端）
+
+================================================================================
+一、审查结果概览
+================================================================================
+
+已完全支持 Bearer Token + Cookie 双认证：
+  ✅ POST /api/jobs（创建任务）
+  ✅ GET /api/jobs（查询任务）
+  ✅ POST /api/upload/image（图片上传）
+  ✅ GET /api/user/stats（用户统计）
+  ✅ GET /api/credits（信用点查询）
+  ✅ GET /api/user（用户信息）
+  ✅ GET /api/user/generations（生成历史）
+  ✅ DELETE /api/user/generations（清理生成历史）
+
+需要修改的端点（仅支持 Cookie）：
+  ⚠️  POST /api/upload/video（视频上传） - 高优先级
+  ⚠️  POST /api/jobs/long-video（长视频生成）- 高优先级
+  ⚠️  DELETE /api/user（删除账户） - 高优先级
+  ⚠️  GET /api/credits/history（信用点历史） - 中优先级
+  ⚠️  POST /api/jobs/cleanup（任务清理） - 中优先级
+  ⚠️  GET /api/team（团队信息） - 中优先级
+  ⚠️  GET /api/auth/status（认证状态） - 中优先级
+  ⚠️  POST /api/auth/ensure-profile（确保 profile） - 中优先级
+  ⚠️  POST /api/community/likes（社区点赞） - 低优先级
+  ⚠️  POST /api/community/shares（社区分享） - 低优先级
+
+不需要认证（公开端点）：
+  ✅ GET /api/community/shares（列出社区分享）
+
+================================================================================
+二、关键文件状态
+================================================================================
+
+认证辅助函数（已完全实现）：
+  ✅ getAuthenticatedUser()
+     位置：lib/supabase/auth-helper.ts（第 12-61 行）
+     功能：支持 Bearer Token 和 Cookie 双认证
+  
+  ✅ createAuthenticatedSupabaseFromRequest()
+     位置：lib/supabase/auth-helper.ts（第 105-130 行）
+     功能：返回带有正确认证上下文的 Supabase 客户端
+
+核心认证逻辑位置：
+  ✅ app/api/jobs/route.ts（POST + GET）
+     这是最完整的实现，所有其他端点都应参考此文件
+
+================================================================================
+三、需要立即修改的文件（按优先级）
+================================================================================
+
+高优先级（影响核心功能）：
+
+1. app/api/upload/video/route.ts
+   文件大小：约 150 行
+   需要修改：第 29-36 行
+   修改类型：添加 Bearer Token 支持
+   预期工作量：10 分钟
+   参考文件：app/api/upload/image/route.ts（第 7-26 行）
+
+2. app/api/jobs/long-video/route.ts
+   文件大小：约 360 行
+   需要修改：第 24-28 行（POST plan）
+             第 118 行（getUserTeamSubscriptionInfo 调用）
+             第 302-306 行（GET）
+   修改类型：添加 Bearer Token 支持（3 处）
+   预期工作量：15 分钟
+   参考文件：app/api/jobs/route.ts（第 45-66 行）
+
+3. app/api/user/delete/route.ts
+   文件大小：约 20 行
+   需要修改：第 4-10 行
+   修改类型：添加 Bearer Token 支持
+   预期工作量：10 分钟
+   参考文件：app/api/upload/image/route.ts（第 7-26 行）
+
+中优先级（数据查询）：
+
+4. app/api/credits/history/route.ts
+   修改：使用新的认证函数
+   工作量：5 分钟
+
+5. app/api/jobs/cleanup/route.ts
+   修改：添加 Bearer Token 支持
+   工作量：10 分钟
+
+6. app/api/team/route.ts
+   修改：使用新的认证函数（注意 getTeamForUser 调用）
+   工作量：10 分钟
+
+7. app/api/auth/status/route.ts
+   修改：使用新的认证函数
+   工作量：5 分钟
+
+8. app/api/auth/ensure-profile/route.ts
+   修改：添加 Bearer Token 支持
+   工作量：10 分钟
+
+低优先级（社区功能）：
+
+9. app/api/community/likes/route.ts
+   修改：替换 getUser() 为 getAuthenticatedUser()
+   工作量：5 分钟
+
+10. app/api/community/shares/route.ts
+    修改：替换 getUser() 为 getAuthenticatedUser()（2 处）
+    工作量：5 分钟
+
+================================================================================
+四、标准修改模板
+================================================================================
+
+标准的 Bearer Token + Cookie 双认证模式（大多数端点应采用）：
+
+const authHeader = req.headers.get('authorization');
+let user = null;
+let supa;
+
+if (authHeader?.startsWith('Bearer ')) {
+  // 移动端：使用 Bearer token
+  const token = authHeader.substring(7);
+  const { createClient } = await import('@supabase/supabase-js');
+  supa = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+  const { data: { user: tokenUser } } = await supa.auth.getUser(token);
+  user = tokenUser;
+} else {
+  // Web端：使用 cookie
+  supa = await createSupabaseServer();
+  const { data: { user: cookieUser } } = await supa.auth.getUser();
+  user = cookieUser;
+}
+
+if (!user) {
+  return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+}
+
+简化模板（使用新的认证函数）：
+
+const user = await getAuthenticatedUser(req);
+if (!user) {
+  return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+}
+
+const supa = await createAuthenticatedSupabaseFromRequest(req);
+
+================================================================================
+五、实施建议
+================================================================================
+
+时间分配：
+  第一天（30-40 分钟）：修复 3 个高优先级文件
+  第二天（40-50 分钟）：修复 5 个中优先级文件
+  第三天（10-15 分钟）：修复 2 个低优先级文件
+
+测试建议：
+  1. Bearer Token 认证测试：
+     curl -X POST http://localhost:3005/api/upload/video \
+       -H "Authorization: Bearer {access_token}" \
+       -F "file=@video.mp4"
+
+  2. Cookie 认证测试：
+     curl -X POST http://localhost:3005/api/upload/video \
+       -H "Cookie: sb-session=..." \
+       -F "file=@video.mp4"
+
+  3. 未认证测试（应返回 401）：
+     curl -X POST http://localhost:3005/api/upload/video \
+       -F "file=@video.mp4"
+
+documentation：
+  已创建两个详细文档：
+  1. API_AUTHENTICATION_REVIEW.md - 完整的审查报告
+  2. AUTHENTICATION_FIX_CHECKLIST.md - 详细的修复清单
+
+================================================================================
+六、重点强调
+================================================================================
+
+已经完成的工作：
+  ✅ Core logic: 完整的 Bearer Token 认证实现
+  ✅ 图片上传、任务创建/查询已完全支持
+  ✅ 统一认证函数已实现
+  ✅ 信用点管理已支持移动端
+
+需要完成的工作：
+  1. 视频上传（/api/upload/video）
+  2. 长视频生成（/api/jobs/long-video）
+  3. 账户删除（/api/user/delete）
+  4. 其他 7 个端点
+
+修复原则：
+  - 保持向后兼容性（Cookie 认证继续可用）
+  - 统一使用新的认证函数或标准模板
+  - 添加适当的日志记录便于调试
+  - 保持错误消息的用户友好性
+
+================================================================================
+七、相关文件列表
+================================================================================
+
+已审查的文件：
+  - d:\xroting\monna\monna-saas\app\api\jobs\route.ts
+  - d:\xroting\monna\monna-saas\app\api\upload\image\route.ts
+  - d:\xroting\monna\monna-saas\app\api\upload\video\route.ts
+  - d:\xroting\monna\monna-saas\app\api\user\stats\route.ts
+  - d:\xroting\monna\monna-saas\app\api\credits\route.ts
+  - d:\xroting\monna\monna-saas\app\api\user\route.ts
+  - d:\xroting\monna\monna-saas\app\api\user\generations\route.ts
+  - d:\xroting\monna\monna-saas\app\api\user\delete\route.ts
+  - d:\xroting\monna\monna-saas\app\api\jobs\long-video\route.ts
+  - d:\xroting\monna\monna-saas\app\api\jobs\cleanup\route.ts
+  - d:\xroting\monna\monna-saas\app\api\team\route.ts
+  - d:\xroting\monna\monna-saas\app\api\credits\history\route.ts
+  - d:\xroting\monna\monna-saas\app\api\auth\status\route.ts
+  - d:\xroting\monna\monna-saas\app\api\auth\ensure-profile\route.ts
+  - d:\xroting\monna\monna-saas\app\api\community\likes\route.ts
+  - d:\xroting\monna\monna-saas\app\api\community\shares\route.ts
+  - d:\xroting\monna\monna-saas\lib\supabase\auth-helper.ts
+
+生成的文档：
+  - API_AUTHENTICATION_REVIEW.md（完整审查报告）
+  - AUTHENTICATION_FIX_CHECKLIST.md（修复清单）
+  - AUTHENTICATION_SUMMARY.txt（本文件）
+
+================================================================================
