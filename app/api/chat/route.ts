@@ -3,84 +3,81 @@ import { createSupabaseServer } from "@/lib/supabase/server";
 import OpenAI from "openai";
 import { ProxyAgent } from "undici";
 
-const systemPrompt = `你是一名优秀的FPGA和ASIC数字前端高级工程师，精通Verilog/SystemVerilog HDL语言设计。
+// ============================================================================
+// 🔧 服务端固化的 System Prompt（不依赖前端传入）
+// ============================================================================
+const systemPrompt = `你是FPGA/ASIC数字前端工程师，精通Verilog/SystemVerilog。
 
-## 核心工作流程
+## 工作模式
 
-当用户要求修改现有文件时：
-1. 先使用read_file工具读取文件内容，了解完整上下文
-2. 然后使用SEARCH/REPLACE块格式输出修改（只输出要改的部分，不要输出整个文件）
-3. 不要猜测文件内容，必须先读取
+你在Agent模式下工作。每次响应必须调用一个工具：
+- 需要信息 → 调用 ls_dir / read_file / get_dir_tree
+- 需要修改 → 调用 edit_file
+- 任务完成 → 调用 finalize（这是唯一的结束方式）
 
-当用户要求创建新文件时：
-1. 直接输出完整代码
-2. 使用合理的文件路径（src/, rtl/, tb/等）
+## 重要规则
 
-## 代码输出格式
+1. 每次响应必须调用且只调用一个工具
+2. 禁止输出纯文本响应（除非通过 finalize 工具）
+3. 任务完成时必须调用 finalize 工具，不能直接输出总结
 
-### 格式A：创建新文件（输出完整代码）
+## 工作流程
 
-使用标准Markdown代码块：
+示例：用户说"给src目录下所有.v文件添加注释"
 
-三个反引号 + 语言名
-文件路径（相对路径）
-完整的代码内容
-三个反引号
+步骤1: 调用 ls_dir 获取文件列表
+步骤2: 调用 read_file(第1个文件)
+步骤3: 调用 edit_file(第1个文件)
+步骤4: 调用 read_file(第2个文件)
+步骤5: 调用 edit_file(第2个文件)
+...
+最后步骤: 调用 finalize(summary="已完成N个文件的修改")
 
-### 格式B：修改现有文件（只输出要改的部分 - 推荐）
+## edit_file 格式
 
-使用SEARCH/REPLACE块格式：
-
-三个反引号 + 语言名
-文件路径（相对路径）
 <<<<<<< ORIGINAL
-要替换的原始代码（包含3-5行上下文）
+从read_file精确复制的原始代码
 =======
 修改后的代码
 >>>>>>> UPDATED
-三个反引号
 
-**关键规则：**
-- ORIGINAL块必须包含足够的上下文（修改点前后各3-5行），确保唯一匹配
-- 必须精确匹配原文件内容（包括空格、缩进）
-- 如果一个文件有多处修改且不相邻，使用多个独立的代码块
-- 禁止使用绝对路径（如e:\\\\path\\\\file.v）
-- 禁止使用冒号格式（如verilog:src/uart.v）
+## 关键
 
-## 示例
+- 任务完成必须调用 finalize 工具
+- 不要输出纯文本，必须调用工具`;
 
-用户："请将spi_master的data_in位宽从8bit改为16bit"
-
-你的回答：
-
-我将修改spi_master模块的输入数据位宽：
-
-三个反引号verilog
-src/spi_master.v
-<<<<<<< ORIGINAL
-module spi_master #(
-    parameter CLOCK_DIV = 4
-) (
-    input wire clk,
-    input wire reset,
-    input wire [7:0] data_in,  // 当前是8位
-    output wire mosi
-);
-=======
-module spi_master #(
-    parameter CLOCK_DIV = 4
-) (
-    input wire clk,
-    input wire reset,
-    input wire [15:0] data_in,  // 改为16位
-    output wire mosi
-);
->>>>>>> UPDATED
-三个反引号
-
-位宽已从8bit改为16bit。
-
-`;
+// ============================================================================
+// 🔧 服务端固化的 Tools Schema（不依赖前端每轮传入）
+// ============================================================================
+const SERVER_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+  {
+    type: "function",
+    function: {
+      name: "finalize",
+      description: "任务完成时调用此工具。这是结束Agent循环的唯一方式。调用后Agent将停止并显示总结。",
+      parameters: {
+        type: "object",
+        properties: {
+          summary: {
+            type: "string",
+            description: "任务完成的总结，例如：'已完成5个文件的修改：file1.v, file2.v, ...'",
+          },
+          files_modified: {
+            type: "array",
+            items: { type: "string" },
+            description: "修改的文件列表",
+          },
+          success: {
+            type: "boolean",
+            description: "任务是否成功完成",
+          },
+        },
+        required: ["summary", "success"],
+      },
+    },
+  },
+  // 其他工具由前端传入，这里只定义 finalize
+];
 
 // Chat API for genRTL AI Assistant
 // This endpoint handles chat conversations between the frontend and AI backend
@@ -124,7 +121,7 @@ export async function POST(req: NextRequest) {
     fetch('http://127.0.0.1:7243/ingest/4eeaa7bf-5db4-4a40-89b4-4cbbaffa678d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:172',message:'收到chat请求',data:{toolsCount:requestBody.tools?.length||0,toolNames:requestBody.tools?.map((t:any)=>t.function?.name||t.name)||[],messagesCount:requestBody.messages?.length||0,model:requestBody.model||'default'},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
     // #endregion
 
-    const { messages, model = "gpt-4o-mini", stream = false, temperature = 0.7, max_tokens = 32768, tools } = requestBody;
+    const { messages, model = "gpt-4.1", stream = false, temperature = 0.7, max_tokens = 32768, tools } = requestBody;
     // #region agent log
     fetch('http://127.0.0.1:7243/ingest/4eeaa7bf-5db4-4a40-89b4-4cbbaffa678d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:185',message:'解析参数',data:{tools:tools||'undefined',toolsType:typeof tools,toolsIsArray:Array.isArray(tools),model},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H1'})}).catch(()=>{});
     // #endregion
@@ -218,9 +215,13 @@ export async function POST(req: NextRequest) {
     ];
 
     console.log("✅ System prompt added, total messages:", messagesWithSystem.length);
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/4eeaa7bf-5db4-4a40-89b4-4cbbaffa678d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:222',message:'SystemPrompt content check',data:{promptLength:systemPrompt.length,hasAgentMode:systemPrompt.includes('Agent模式'),hasToolPriority:systemPrompt.includes('工具优先'),hasExampleWorkflow:systemPrompt.includes('典型工作流程示例'),firstUserMessage:messages[messages.length-1]?.content?.substring(0,100)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
 
     // 🔥 Use max_tokens from request, with a reasonable upper limit
-    // For gpt-4.1-mini-2025-04-14, max output is 32768 tokens (verified by OpenAI API)
+    // For gpt-4.1, max output is 32768 tokens, context window is ~1M tokens (verified by OpenAI API)
     const safeMaxTokens = Math.min(max_tokens, 32768);
     console.log(`📊 Token limit: requested=${max_tokens}, using=${safeMaxTokens}`);
 
@@ -240,16 +241,40 @@ export async function POST(req: NextRequest) {
             await new Promise(resolve => setTimeout(resolve, delay));
           }
 
+          // 🎯 结构性修复：
+          // 1. 服务端固化工具 schema（SERVER_TOOLS + 前端工具）
+          // 2. 全程 tool_choice: "required"（模型必须调用工具）
+          // 3. 通过 finalize 工具作为唯一的终止信号
+          
+          // 合并服务端固化工具 + 前端传入工具
+          const mergedTools = [
+            ...SERVER_TOOLS,
+            ...(tools || []),
+          ];
+          
+          console.log(`📊 Sending request - serverTools: ${SERVER_TOOLS.length}, clientTools: ${tools?.length || 0}, merged: ${mergedTools.length}, messages: ${messagesWithSystem.length}`);
+
           const streamResponse = await openai.chat.completions.create({
             model,
-            messages: messagesWithSystem,  // ← Use messages with system prompt
-            temperature,
-            max_tokens: safeMaxTokens, // Use safe token limit
+            messages: messagesWithSystem,
+            temperature: 0.1, // 批量任务使用低 temperature
+            max_tokens: safeMaxTokens,
             stream: true,
-            tools: tools || undefined, // Allow LLM to use tools (read_file, etc.)
+            tools: mergedTools,
+            tool_choice: "required", // 🔥 全程强制工具调用，通过 finalize 结束
+            parallel_tool_calls: false, // One tool at a time
+            // #region agent log
+            // Log: Testing tool_choice parameter to limit concurrent tool calls (Hypothesis E)
+            // #endregion
+          }).catch((error) => {
+            // #region agent log
+            fetch('http://127.0.0.1:7243/ingest/4eeaa7bf-5db4-4a40-89b4-4cbbaffa678d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:244',message:'OpenAI API Error',data:{errorMessage:error.message,errorCode:error.code,errorType:error.type,model},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'API_ERROR'})}).catch(()=>{});
+            // #endregion
+            console.error("❌ OpenAI API Error:", error);
+            throw error;
           });
           // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/4eeaa7bf-5db4-4a40-89b4-4cbbaffa678d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:337',message:'调用OpenAI(streaming)',data:{model,toolsPassedToOpenAI:tools||'undefined',toolsCount:tools?.length||0,messagesCount:messagesWithSystem.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'H3'})}).catch(()=>{});
+          fetch('http://127.0.0.1:7243/ingest/4eeaa7bf-5db4-4a40-89b4-4cbbaffa678d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:260',message:'调用OpenAI(required+finalize)',data:{model,mergedToolsCount:mergedTools.length,serverToolsCount:SERVER_TOOLS.length,clientToolsCount:tools?.length||0,messagesCount:messagesWithSystem.length,toolChoice:'required'},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'FINALIZE'})}).catch(()=>{});
           // #endregion
 
           console.log("✅ OpenAI stream started");
@@ -260,11 +285,36 @@ export async function POST(req: NextRequest) {
             async start(controller) {
               try {
                 let fullResponse = ''; // Track full response for debugging
+                let chunkCount = 0;
+                let hasContent = false;
+                let hasToolCalls = false;
                 for await (const chunk of streamResponse) {
+                  chunkCount++;
+                  
+                  // Track content and tool calls
+                  if (chunk.choices[0]?.delta?.content) {
+                    hasContent = true;
+                  }
+                  
+                  // Log tool calls for debugging
+                  if (chunk.choices[0]?.delta?.tool_calls) {
+                    hasToolCalls = true;
+                    console.log('🔧 Tool call chunk:', JSON.stringify(chunk.choices[0].delta.tool_calls, null, 2));
+                    // #region agent log
+                    fetch('http://127.0.0.1:7243/ingest/4eeaa7bf-5db4-4a40-89b4-4cbbaffa678d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:276',message:'Tool call detected',data:{chunkCount,toolCallsData:chunk.choices[0].delta.tool_calls,toolCallCount:chunk.choices[0].delta.tool_calls.length},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'C'})}).catch(()=>{});
+                    // #endregion
+                  }
+                  
                   const data = JSON.stringify(chunk);
                   const text = `data: ${data}\n\n`;
                   controller.enqueue(encoder.encode(text));
                 }
+                
+                // #region agent log
+                fetch('http://127.0.0.1:7243/ingest/4eeaa7bf-5db4-4a40-89b4-4cbbaffa678d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:288',message:'Stream completed',data:{chunkCount,hasContent,hasToolCalls,model},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'STREAM_COMPLETE'})}).catch(()=>{});
+                // #endregion
+                
+                console.log(`✅ Stream completed, sent ${chunkCount} chunks, hasContent: ${hasContent}, hasToolCalls: ${hasToolCalls}`);
                 controller.enqueue(encoder.encode('data: [DONE]\n\n'));
                 controller.close();
               } catch (error) {
