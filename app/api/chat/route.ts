@@ -76,7 +76,125 @@ const SERVER_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       },
     },
   },
-  // 其他工具由前端传入，这里只定义 finalize
+  {
+    type: "function",
+    function: {
+      name: "agent",
+      description: `启动子Agent执行复杂的代码探索任务。子Agent只有只读权限，不能修改文件。
+
+使用场景：
+- 搜索关键字或文件时，不确定能一次找到正确匹配
+- 探索代码库结构
+- 查找特定实现或定义
+- 需要深入探索后才能确定修改方案
+
+注意：子Agent完成后会返回探索结果，主Agent可以基于这些结果进行下一步操作。`,
+      parameters: {
+        type: "object",
+        properties: {
+          description: {
+            type: "string",
+            description: "任务的简短描述（用于日志和追踪）",
+          },
+          prompt: {
+            type: "string",
+            description: "给子Agent的详细任务说明",
+          },
+        },
+        required: ["description", "prompt"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "todo_write",
+      description: `创建和管理任务列表，用于跟踪复杂任务的进度。
+
+用途：
+- 为多步骤操作创建任务列表
+- 随着完成更新任务状态
+- 跟踪下一步需要做什么
+
+任务状态：
+- pending: 未开始
+- in_progress: 进行中
+- completed: 已完成
+- cancelled: 已取消
+
+批量创建时，使用 todos 数组配合 merge=true 更新现有任务，或 merge=false 替换所有任务。`,
+      parameters: {
+        type: "object",
+        properties: {
+          action: {
+            type: "string",
+            enum: ["create", "update", "delete", "list"],
+            description: "操作类型",
+          },
+          id: {
+            type: "string",
+            description: "任务ID（update和delete时必需）",
+          },
+          content: {
+            type: "string",
+            description: "任务描述（create和update时使用）",
+          },
+          status: {
+            type: "string",
+            enum: ["pending", "in_progress", "completed", "cancelled"],
+            description: "任务状态（update时使用）",
+          },
+          merge: {
+            type: "boolean",
+            description: "是否合并到现有任务（true）或替换所有（false）",
+          },
+          todos: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                content: { type: "string" },
+                status: { type: "string", enum: ["pending", "in_progress", "completed", "cancelled"] },
+              },
+              required: ["id", "content", "status"],
+            },
+            description: "批量任务列表",
+          },
+        },
+        required: ["action"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "web_fetch",
+      description: `获取网页内容。用于读取文档、参考资料或任何公开访问的网页内容。
+
+使用场景：
+- 阅读API文档
+- 获取参考规范
+- 从技术博客或教程获取信息
+
+注意：此工具提取网页的文本内容，移除HTML标签和脚本。如果内容超过最大长度，会被截断。`,
+      parameters: {
+        type: "object",
+        properties: {
+          url: {
+            type: "string",
+            description: "要获取的网页URL",
+          },
+          maxLength: {
+            type: "number",
+            description: "返回的最大字符数（默认：50000）",
+          },
+        },
+        required: ["url"],
+      },
+    },
+  },
+  // 其他工具由前端传入，这里只定义 finalize、agent、todo_write 和 web_fetch
 ];
 
 // Chat API for genRTL AI Assistant
@@ -295,6 +413,14 @@ export async function POST(req: NextRequest) {
                   if (chunk.choices[0]?.delta?.content) {
                     hasContent = true;
                   }
+                  
+                  // #region agent log
+                  // 检测 reasoning_content (仅 o1/o3 模型支持)
+                  const delta = chunk.choices[0]?.delta as any;
+                  if (delta?.reasoning_content) {
+                    fetch('http://127.0.0.1:7243/ingest/4eeaa7bf-5db4-4a40-89b4-4cbbaffa678d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:reasoning',message:'收到reasoning_content',data:{reasoningLength:delta.reasoning_content.length,chunkCount,model},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'REASONING_BACKEND'})}).catch(()=>{});
+                  }
+                  // #endregion
                   
                   // Log tool calls for debugging
                   if (chunk.choices[0]?.delta?.tool_calls) {
