@@ -11,6 +11,21 @@ interface GenRTLPricingClientProps {
   hasValidProducts: boolean;
 }
 
+// 定义计划类型
+interface PlanConfig {
+  id: string;
+  name: string;
+  price: number;
+  included_usd: number;
+  description: string;
+  features: string[];
+  limitations?: string[];
+  usage_examples?: string[];
+  popular?: boolean;
+  badge?: string;
+  icon?: React.ReactNode;
+}
+
 export function GenRTLPricingClient({
   user,
   currentPlan,
@@ -19,13 +34,14 @@ export function GenRTLPricingClient({
   hasValidProducts,
 }: GenRTLPricingClientProps) {
   // genRTL 订阅计划配置
-  const plans = [
+  const plans: PlanConfig[] = [
     {
       id: 'hobby',
       name: 'Hobby',
       price: 0,
       included_usd: 0,
       description: '体验版，了解 genRTL 功能',
+      icon: <Cpu className="h-6 w-6" />,
       features: [
         '浏览 CBB 商城',
         '查看示例代码',
@@ -42,6 +58,7 @@ export function GenRTLPricingClient({
       price: 20,
       included_usd: 20,
       description: '适合个人开发者和小型项目',
+      icon: <Zap className="h-6 w-6" />,
       features: [
         '每月 $20 美元池 (1:1)',
         '~250 次 Plan 任务',
@@ -62,7 +79,9 @@ export function GenRTLPricingClient({
       price: 100,
       included_usd: 100,
       popular: true,
+      badge: '最受欢迎',
       description: '专业团队，大型项目',
+      icon: <Crown className="h-6 w-6" />,
       features: [
         '每月 $100 美元池 (1:1)',
         '~1400 次 Plan 任务',
@@ -85,6 +104,7 @@ export function GenRTLPricingClient({
       price: 200,
       included_usd: 200,
       description: '企业级，无限制使用',
+      icon: <Building2 className="h-6 w-6" />,
       features: [
         '每月 $200 美元池 (1:1)',
         '~3100 次 Plan 任务',

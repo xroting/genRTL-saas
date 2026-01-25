@@ -193,6 +193,10 @@ function SubscriptionCard() {
     const planMap: Record<string, string> = {
       'free': t('freePlan'),
       'basic': t('basicPlan'),
+      'plus': 'Plus',  // 新计划
+      'ultra_plus': 'Ultra Plus',  // 新计划
+      // 向后兼容
+      'hobby': t('freePlan'),
       'professional': t('professionalPlan'),
       'enterprise': t('enterprisePlan')
     };

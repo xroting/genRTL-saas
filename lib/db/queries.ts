@@ -142,6 +142,7 @@ export async function getTeamForUser(providedUser?: User | null, providedSupabas
           total_credits,
           credits_consumed,
           last_credit_update,
+          on_demand_enabled,
           created_at,
           updated_at
         )
@@ -183,7 +184,8 @@ export async function getTeamForUser(providedUser?: User | null, providedSupabas
         updatedAt: selectedTeam.updated_at,
         totalCredits: selectedTeam.total_credits,
         creditsConsumed: selectedTeam.credits_consumed,
-        lastCreditUpdate: selectedTeam.last_credit_update
+        lastCreditUpdate: selectedTeam.last_credit_update,
+        on_demand_enabled: selectedTeam.on_demand_enabled ?? false
       };
     }
     
@@ -316,7 +318,7 @@ export async function createUserTeam(user: User, providedSupabase?: SupabaseClie
       .from('teams')
       .insert({
         name: teamName,
-        plan_name: 'free',
+        plan_name: 'free', // 默认使用 Free 计划
         credits: 20,
         total_credits: 20,
         credits_consumed: 0

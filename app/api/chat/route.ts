@@ -2,6 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { ProxyAgent } from "undici";
+import { UsageLedger } from "@/lib/cbb/usage-ledger";
+import { USDPoolManager, SUBSCRIPTION_PLANS } from "@/lib/cbb/usd-pool";
+import { getTeamForUser, createUserTeam } from "@/lib/db/queries";
+
+// ============================================================================
+// 🔧 根据订阅计划选择模型
+// ============================================================================
+function getModelForPlan(planName: string): string {
+  const plan = SUBSCRIPTION_PLANS[planName] || SUBSCRIPTION_PLANS.free;
+  
+  // Free 计划使用 Claude Haiku 3（低成本模型）
+  if (planName === 'free' || planName === 'hobby') {
+    return 'claude-3-haiku-20240307';
+  }
+  
+  // 其他计划使用 Claude Sonnet 4（高性能模型）
+  return 'claude-sonnet-4-20250514';
+}
 
 // ============================================================================
 // 🔧 服务端 System Prompt - 针对 RTL 开发优化
@@ -271,9 +289,26 @@ export async function POST(req: NextRequest) {
     }
 
     if (stream) {
+      // 确定使用的模型（根据订阅计划）
+      let selectedModel = 'claude-sonnet-4-20250514'; // 默认使用 Sonnet 4
+      
+      // 如果用户已认证，根据其订阅计划选择模型
+      if (user) {
+        try {
+          let team = await getTeamForUser(user, supa);
+          if (team) {
+            const planName = team.plan_name || 'free';
+            selectedModel = getModelForPlan(planName);
+            console.log(`📋 User plan: ${planName}, selected model: ${selectedModel}`);
+          }
+        } catch (error) {
+          console.error('Failed to get team for model selection:', error);
+        }
+      }
+      
       // Streaming response
       const streamResponse = anthropic.messages.stream({
-        model: "claude-sonnet-4-20250514",
+        model: selectedModel,
         system: finalSystemPrompt,
         messages: anthropicMessages,
         max_tokens: max_tokens,
@@ -289,6 +324,8 @@ export async function POST(req: NextRequest) {
               try {
             let toolCallIndex = 0;
 
+            let finalMessage: Anthropic.Message | null = null;
+            
             for await (const event of streamResponse) {
               if (event.type === 'content_block_start') {
                 const block = (event as any).content_block;
@@ -298,7 +335,7 @@ export async function POST(req: NextRequest) {
                     id: `chatcmpl-${Date.now()}`,
                     object: "chat.completion.chunk",
                     created: Math.floor(Date.now() / 1000),
-                    model: "claude-sonnet-4-20250514",
+                    model: selectedModel,
                     choices: [{
                       index: 0,
                       delta: {
@@ -329,7 +366,7 @@ export async function POST(req: NextRequest) {
                     id: `chatcmpl-${Date.now()}`,
                     object: "chat.completion.chunk",
                     created: Math.floor(Date.now() / 1000),
-                    model: "claude-sonnet-4-20250514",
+                    model: selectedModel,
                     choices: [{
                       index: 0,
                       delta: { content: textContent },
@@ -342,7 +379,7 @@ export async function POST(req: NextRequest) {
                     id: `chatcmpl-${Date.now()}`,
                     object: "chat.completion.chunk",
                     created: Math.floor(Date.now() / 1000),
-                    model: "claude-sonnet-4-20250514",
+                    model: selectedModel,
                     choices: [{
                       index: 0,
                       delta: {
@@ -359,14 +396,14 @@ export async function POST(req: NextRequest) {
               } else if (event.type === 'content_block_stop') {
                 toolCallIndex++;
               } else if (event.type === 'message_stop') {
-                const finalMessage = await streamResponse.finalMessage();
+                finalMessage = await streamResponse.finalMessage();
                 const hasToolUse = finalMessage.content.some((b: any) => b.type === 'tool_use');
-                console.log(`📤 Stream finished: hasToolUse=${hasToolUse}, stop_reason=${finalMessage.stop_reason}`);
+                console.log(`📤 Stream finished: hasToolUse=${hasToolUse}, stop_reason=${finalMessage.stop_reason}, usage=${JSON.stringify(finalMessage.usage)}`);
                 const chunk = {
                   id: `chatcmpl-${Date.now()}`,
                   object: "chat.completion.chunk",
                   created: Math.floor(Date.now() / 1000),
-                  model: "claude-sonnet-4-20250514",
+                  model: selectedModel,
                   choices: [{
                     index: 0,
                     delta: {},
@@ -374,6 +411,80 @@ export async function POST(req: NextRequest) {
                   }]
                 };
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+              }
+            }
+
+            // 🔥 记录 Usage 到数据库
+            if (finalMessage && user) {
+              try {
+                // 获取用户的team信息
+                let team = await getTeamForUser(user, supa);
+                
+                // 如果没有team，自动创建
+                if (!team) {
+                  console.log('🏗️ User has no team, creating one...');
+                  team = await createUserTeam(user, supa);
+                  console.log('✅ Team created:', team?.id);
+                  
+                  // 初始化 USD Pool
+                  if (team) {
+                    await USDPoolManager.initializePool({
+                      userId: user.id,
+                      teamId: team.id,
+                      planName: team.plan_name || 'free',
+                    });
+                    console.log('✅ USD Pool initialized');
+                  }
+                }
+                
+                const planName = team?.plan_name || 'free';
+                const actualModel = selectedModel; // 使用实际选择的模型
+                
+                // 计算 USD cost (chat API类似implement任务)
+                const usdCost = USDPoolManager.calculateLLMCost({
+                  planName,
+                  taskType: 'implement',
+                  inputTokens: finalMessage.usage.input_tokens,
+                  outputTokens: finalMessage.usage.output_tokens,
+                  cachedInputTokens: (finalMessage.usage as any).cache_read_input_tokens || 0,
+                });
+
+                console.log(`💰 Calculated cost: $${usdCost.toFixed(6)} for ${finalMessage.usage.input_tokens} input + ${finalMessage.usage.output_tokens} output tokens (model: ${actualModel})`);
+
+                // 扣费
+                const chargeResult = await USDPoolManager.charge({
+                  userId: user.id,
+                  amount: usdCost,
+                  description: `Chat API - ${actualModel}`,
+                  allowOnDemand: team?.on_demand_enabled ?? false, // Free 档默认不允许 on-demand
+                  idempotencyKey: `chat_${finalMessage.id}`,
+                });
+
+                if (chargeResult.success) {
+                  // 记录到 Usage Ledger
+                  await UsageLedger.recordLLMUsage({
+                    userId: user.id,
+                    bucket: chargeResult.bucket,
+                    provider: 'anthropic',
+                    model: actualModel,
+                    inputTokens: finalMessage.usage.input_tokens,
+                    outputTokens: finalMessage.usage.output_tokens,
+                    cachedInputTokens: (finalMessage.usage as any).cache_read_input_tokens || 0,
+                    usdCost,
+                    idempotencyKey: `chat_${finalMessage.id}`,
+                    metadata: {
+                      api: 'chat',
+                      model: actualModel,
+                      plan: planName,
+                    },
+                  });
+
+                  console.log(`✅ Usage recorded: ${finalMessage.usage.input_tokens + finalMessage.usage.output_tokens} tokens, $${usdCost.toFixed(6)}, bucket: ${chargeResult.bucket}`);
+                } else {
+                  console.error(`❌ Failed to charge: ${chargeResult.error}`);
+                }
+              } catch (usageError) {
+                console.error('❌ Failed to record usage:', usageError);
               }
             }
 
@@ -396,9 +507,26 @@ export async function POST(req: NextRequest) {
             },
           });
     } else {
+      // 确定使用的模型（根据订阅计划）
+      let selectedModel = 'claude-sonnet-4-20250514'; // 默认使用 Sonnet 4
+      
+      // 如果用户已认证，根据其订阅计划选择模型
+      if (user) {
+        try {
+          let team = await getTeamForUser(user, supa);
+          if (team) {
+            const planName = team.plan_name || 'free';
+            selectedModel = getModelForPlan(planName);
+            console.log(`📋 User plan: ${planName}, selected model: ${selectedModel}`);
+          }
+        } catch (error) {
+          console.error('Failed to get team for model selection:', error);
+        }
+      }
+      
       // Non-streaming response
       const completion = await anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
+        model: selectedModel,
         system: finalSystemPrompt,
         messages: anthropicMessages,
         max_tokens: max_tokens,
@@ -406,6 +534,81 @@ export async function POST(req: NextRequest) {
       });
 
       console.log("✅ Claude response received");
+
+      // 🔥 记录 Usage 到数据库
+      if (user) {
+        try {
+          // 获取用户的team信息
+          let team = await getTeamForUser(user, supa);
+          
+          // 如果没有team，自动创建
+          if (!team) {
+            console.log('🏗️ User has no team, creating one...');
+            team = await createUserTeam(user, supa);
+            console.log('✅ Team created:', team?.id);
+            
+            // 初始化 USD Pool
+            if (team) {
+              await USDPoolManager.initializePool({
+                userId: user.id,
+                teamId: team.id,
+                planName: team.plan_name || 'free',
+              });
+              console.log('✅ USD Pool initialized');
+            }
+          }
+          
+          const planName = team?.plan_name || 'free';
+          const actualModel = selectedModel; // 使用实际选择的模型
+          
+          // 计算 USD cost (chat API类似implement任务)
+          const usdCost = USDPoolManager.calculateLLMCost({
+            planName,
+            taskType: 'implement',
+            inputTokens: completion.usage.input_tokens,
+            outputTokens: completion.usage.output_tokens,
+            cachedInputTokens: (completion.usage as any).cache_read_input_tokens || 0,
+          });
+
+          console.log(`💰 Calculated cost: $${usdCost.toFixed(6)} for ${completion.usage.input_tokens} input + ${completion.usage.output_tokens} output tokens (model: ${actualModel})`);
+
+          // 扣费
+          const chargeResult = await USDPoolManager.charge({
+            userId: user.id,
+            amount: usdCost,
+            description: `Chat API - ${actualModel} (non-stream)`,
+            allowOnDemand: team?.on_demand_enabled ?? false, // Free 档默认不允许 on-demand
+            idempotencyKey: `chat_${completion.id}`,
+          });
+
+          if (chargeResult.success) {
+            // 记录到 Usage Ledger
+            await UsageLedger.recordLLMUsage({
+              userId: user.id,
+              bucket: chargeResult.bucket,
+              provider: 'anthropic',
+              model: actualModel,
+              inputTokens: completion.usage.input_tokens,
+              outputTokens: completion.usage.output_tokens,
+              cachedInputTokens: (completion.usage as any).cache_read_input_tokens || 0,
+              usdCost,
+              idempotencyKey: `chat_${completion.id}`,
+              metadata: {
+                api: 'chat',
+                model: actualModel,
+                plan: planName,
+                stream: false,
+              },
+            });
+
+            console.log(`✅ Usage recorded: ${completion.usage.input_tokens + completion.usage.output_tokens} tokens, $${usdCost.toFixed(6)}, bucket: ${chargeResult.bucket}`);
+          } else {
+            console.error(`❌ Failed to charge: ${chargeResult.error}`);
+          }
+        } catch (usageError) {
+          console.error('❌ Failed to record usage:', usageError);
+        }
+      }
 
       const textContent = completion.content
         .filter((block): block is Anthropic.TextBlock => block.type === 'text')

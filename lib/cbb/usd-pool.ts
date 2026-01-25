@@ -22,33 +22,35 @@ function createServiceClient() {
 
 /**
  * 订阅计划配置
- * genRTL-SaaS: Hobby ($0) | Basic ($20) | Pro ($100) | Enterprise ($200)
+ * genRTL-SaaS: Free ($0) | Basic ($20) | Plus ($100) | Ultra Plus ($200)
+ * Included USD 按 1.5:1 映射（月费 × 1.5）
  */
 export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlan> = {
-  hobby: {
-    id: 'hobby',
-    name: 'Hobby',
+  free: {
+    id: 'free',
+    name: 'Free',
     price_usd: 0,
-    included_usd: 2,  // 免费档不提供额度
+    included_usd: 0.5,  // Free 档限制额度
     features: {
       plan_enabled: true,
       implement_enabled: true,
       repair_enabled: true,
       cbb_marketplace: false,
-      on_demand_allowed: true,
+      on_demand_allowed: false,  // Free 档不允许超额
       priority_support: false,
     },
     llm_rates: {
-      plan_per_1k_tokens: 0.01,  // 免费档不提供额度，不计费
-      implement_per_1k_tokens: 0.03,
-      repair_per_1k_tokens: 0.02,
+      // Claude Haiku 3 费率 (input: $0.00025/1K, output: $0.00125/1K)
+      plan_per_1k_tokens: 0.00025,
+      implement_per_1k_tokens: 0.00025,
+      repair_per_1k_tokens: 0.00025,
     },
   },
   basic: {
     id: 'basic',
     name: 'Basic',
     price_usd: 20.0,
-    included_usd: 20.0,  // 🎯 1:1 映射
+    included_usd: 30.0,  // 🎯 1.5:1 映射
     features: {
       plan_enabled: true,
       implement_enabled: true,
@@ -59,49 +61,70 @@ export const SUBSCRIPTION_PLANS: Record<string, SubscriptionPlan> = {
     },
     llm_rates: {
       // 标准费率（3x 成本，毛利 67%）
+      // Claude Sonnet 4 (input: $0.003/1K, output: $0.015/1K)
       plan_per_1k_tokens: 0.009,        // Plan 任务
-      implement_per_1k_tokens: 0.027,   // Implement 任务  
-      repair_per_1k_tokens: 0.020,      // Repair 任务
+      implement_per_1k_tokens: 0.009,   // Implement 任务  
+      repair_per_1k_tokens: 0.009,      // Repair 任务
     },
   },
-  professional: {
-    id: 'professional',
-    name: 'Professional',
+  plus: {
+    id: 'plus',
+    name: 'Plus',
     price_usd: 100.0,
-    included_usd: 100.0,  // 🎯 1:1 映射
+    included_usd: 150.0,  // 🎯 1.5:1 映射
     features: {
       plan_enabled: true,
       implement_enabled: true,
       repair_enabled: true,
       cbb_marketplace: true,
-      on_demand_allowed: true,  // 支持超额
+      on_demand_allowed: true,
       priority_support: false,
     },
     llm_rates: {
-      // 优惠费率（2.7x 成本，毛利 63%）- 高级用户享受 10% 折扣
-      plan_per_1k_tokens: 0.008,
-      implement_per_1k_tokens: 0.024,
-      repair_per_1k_tokens: 0.018,
+      // 优惠费率（2.7x 成本，毛利 63%）- 10% 折扣
+      plan_per_1k_tokens: 0.0081,
+      implement_per_1k_tokens: 0.0081,
+      repair_per_1k_tokens: 0.0081,
     },
   },
-  enterprise: {
-    id: 'enterprise',
-    name: 'Enterprise',
+  ultra_plus: {
+    id: 'ultra_plus',
+    name: 'Ultra Plus',
     price_usd: 200.0,
-    included_usd: 200.0,  // 🎯 1:1 映射
+    included_usd: 300.0,  // 🎯 1.5:1 映射
     features: {
       plan_enabled: true,
       implement_enabled: true,
       repair_enabled: true,
       cbb_marketplace: true,
-      on_demand_allowed: true,  // 无限超额
+      on_demand_allowed: true,
       priority_support: true,
     },
     llm_rates: {
-      // 最优惠费率（2.5x 成本，毛利 60%）- 企业用户享受 20% 折扣
-      plan_per_1k_tokens: 0.007,
-      implement_per_1k_tokens: 0.022,
-      repair_per_1k_tokens: 0.016,
+      // 最优惠费率（2.5x 成本，毛利 60%）- 20% 折扣
+      plan_per_1k_tokens: 0.0075,
+      implement_per_1k_tokens: 0.0075,
+      repair_per_1k_tokens: 0.0075,
+    },
+  },
+  // 保留 hobby 用于向后兼容，将自动迁移到 free
+  hobby: {
+    id: 'hobby',
+    name: 'Hobby (Deprecated)',
+    price_usd: 0,
+    included_usd: 0.5,
+    features: {
+      plan_enabled: true,
+      implement_enabled: true,
+      repair_enabled: true,
+      cbb_marketplace: false,
+      on_demand_allowed: false,
+      priority_support: false,
+    },
+    llm_rates: {
+      plan_per_1k_tokens: 0.00025,
+      implement_per_1k_tokens: 0.00025,
+      repair_per_1k_tokens: 0.00025,
     },
   },
 };
@@ -294,7 +317,21 @@ export class USDPoolManager {
       includedCharged = pool.included_usd_balance;
       const remaining = params.amount - includedCharged;
 
-      if (!plan.features.on_demand_allowed && !params.allowOnDemand) {
+      // 检查是否允许使用 on_demand（用户设置优先）
+      if (!params.allowOnDemand) {
+        return {
+          success: false,
+          chargedAmount: 0,
+          bucket: 'included',
+          includedCharged: 0,
+          onDemandCharged: 0,
+          balanceAfter: pool,
+          error: '订阅额度不足，您已禁用超额使用（on-demand）',
+        };
+      }
+
+      // 检查计划是否支持 on_demand
+      if (!plan.features.on_demand_allowed) {
         return {
           success: false,
           chargedAmount: 0,

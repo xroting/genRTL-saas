@@ -261,7 +261,9 @@ export default function LoginPage() {
                   {otp.map((digit, index) => (
                     <input
                       key={index}
-                      ref={(el) => (otpInputs.current[index] = el)}
+                      ref={(el) => {
+                        if (el) otpInputs.current[index] = el;
+                      }}
                       type="text"
                       inputMode="numeric"
                       maxLength={1}
