@@ -180,12 +180,18 @@ export async function POST(req: NextRequest) {
 
     if (authHeader?.startsWith("Bearer ")) {
       const token = authHeader.substring(7);
+      console.log(`[Auth Debug] Token received (first 50 chars): ${token.substring(0, 50)}...`);
+      console.log(`[Auth Debug] Token length: ${token.length}`);
+      
       const { createClient } = await import("@supabase/supabase-js");
       const authClient = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
       );
-      const { data: { user: tokenUser } } = await authClient.auth.getUser(token);
+      const { data: { user: tokenUser }, error: authError } = await authClient.auth.getUser(token);
+      
+      console.log(`[Auth Debug] getUser result: user=${tokenUser ? tokenUser.email : 'null'}, error=${authError ? authError.message : 'none'}`);
+      
       user = tokenUser;
       supa = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -199,7 +205,11 @@ export async function POST(req: NextRequest) {
     }
 
     if (!user) {
-      console.log("⚠️ Unauthenticated request - allowing for development");
+      console.log("❌ Unauthenticated request - authentication required");
+      return NextResponse.json(
+        { error: "Authentication required. Please sign in to use the chat." },
+        { status: 401, headers: corsHeaders }
+      );
     }
 
     // Anthropic API setup
