@@ -92,7 +92,7 @@ Supabase 支持多个 SMS 提供商。推荐使用以下任一服务：
    ```
    Provider: MessageBird
    API Key: [你的 API Key]
-   Originator: [发送者名称，如 "Monna AI"]
+   Originator: [发送者名称，如 "genRTL"]
    ```
 
 #### 选项 C: Vonage (原 Nexmo)
@@ -117,7 +117,7 @@ Your verification code is: {{ .Token }}
 
 **推荐模板**:
 ```
-【Monna AI】您的验证码是：{{ .Token }}，有效期60秒。
+【genRTL】您的验证码是：{{ .Token }}，有效期60秒。
 ```
 
 ### 步骤 5: 测试配置
@@ -345,5 +345,5 @@ CREATE TABLE team_members (
 
 **最后更新**: 2025-11-07  
 **版本**: v1.0  
-**维护者**: Monna AI 开发团队
+**维护者**: genRTL 开发团队
 

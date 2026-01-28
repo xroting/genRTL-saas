@@ -1,5 +1,5 @@
 /**
- * Dynamic robots.txt for Monna AI
+ * Dynamic robots.txt for genRTL
  * 配置搜索引擎爬虫规则
  */
 

@@ -1,8 +1,8 @@
 // app/delete-account/page.tsx
 export const metadata = {
-  title: "Delete Account | Monna AI",
+  title: "Delete Account | genRTL",
   description:
-    "Request deletion of your Monna AI account and associated data (XROTING TECHNOLOGY LLC).",
+    "Request deletion of your genRTL account and associated data (XROTING TECHNOLOGY LLC).",
 };
 
 const SUPPORT_EMAIL = "privacy@xroting.com";
@@ -24,10 +24,10 @@ export default function DeleteAccountPage({
   const lang = (searchParams?.lang || "zh").toLowerCase(); // zh | en
   const isEN = lang === "en";
 
-  const title = isEN ? "Delete your Monna AI account" : "删除你的 Monna AI 账号";
+  const title = isEN ? "Delete your genRTL account" : "删除你的 genRTL 账号";
   const subtitle = isEN
-    ? "This page is the official web resource for account deletion requests for Monna AI (XROTING TECHNOLOGY LLC)."
-    : "本页面是 Monna AI（XROTING TECHNOLOGY LLC）用于账号删除请求的官方网页入口。";
+    ? "This page is the official web resource for account deletion requests for genRTL (XROTING TECHNOLOGY LLC)."
+    : "本页面是 genRTL（XROTING TECHNOLOGY LLC）用于账号删除请求的官方网页入口。";
 
   const success = searchParams?.done === "1";
   const error = searchParams?.error;
@@ -40,7 +40,7 @@ export default function DeleteAccountPage({
             <h1 className="text-2xl font-bold text-zinc-900">{title}</h1>
             <p className="mt-2 text-sm text-zinc-600">{subtitle}</p>
             <p className="mt-1 text-xs text-zinc-500">
-              {isEN ? "App/Developer name:" : "应用/开发者名称："} Monna AI / XROTING TECHNOLOGY LLC
+              {isEN ? "App/Developer name:" : "应用/开发者名称："} genRTL / XROTING TECHNOLOGY LLC
             </p>
           </div>
           <div className="flex gap-2">
@@ -91,8 +91,8 @@ export default function DeleteAccountPage({
           <Section title={isEN ? "Request account deletion" : "发起账号删除请求"}>
             <p>
               {isEN
-                ? "Enter the email associated with your Monna AI account. We will send a confirmation link to verify you are the account owner."
-                : "请输入与你 Monna AI 账号绑定的邮箱。我们会发送确认链接，用于验证你是账号所有者。"}
+                ? "Enter the email associated with your genRTL account. We will send a confirmation link to verify you are the account owner."
+                : "请输入与你 genRTL 账号绑定的邮箱。我们会发送确认链接，用于验证你是账号所有者。"}
             </p>
 
             <form className="mt-4 grid gap-3" method="POST" action="/api/account-deletion/request">

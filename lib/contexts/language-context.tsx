@@ -15,26 +15,16 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 export const SUPPORTED_LANGUAGES = [
   { code: 'en' as SupportedLanguage, name: 'English', flag: '🇺🇸' },
   { code: 'zh' as SupportedLanguage, name: '中文', flag: '🇨🇳' },
-  { code: 'ja' as SupportedLanguage, name: '日本語', flag: '🇯🇵' },
-  { code: 'ko' as SupportedLanguage, name: '한국어', flag: '🇰🇷' },
-  { code: 'fr' as SupportedLanguage, name: 'Français', flag: '🇫🇷' },
-  { code: 'es' as SupportedLanguage, name: 'Español', flag: '🇪🇸' },
-  { code: 'de' as SupportedLanguage, name: 'Deutsch', flag: '🇩🇪' },
 ];
 
 // 检测浏览器语言
 function detectBrowserLanguage(): SupportedLanguage {
-  if (typeof window === 'undefined') return 'en';
+  if (typeof window === 'undefined') return 'zh'; // 默认中文
 
   const browserLang = navigator.language.toLowerCase();
 
   if (browserLang.startsWith('zh')) return 'zh';
-  if (browserLang.startsWith('ja')) return 'ja';
-  if (browserLang.startsWith('ko')) return 'ko';
-  if (browserLang.startsWith('fr')) return 'fr';
-  if (browserLang.startsWith('es')) return 'es';
-  if (browserLang.startsWith('de')) return 'de';
-  return 'en';
+  return 'en'; // 其他语言默认英文
 }
 
 // 从本地存储获取语言设置
@@ -43,7 +33,7 @@ function getStoredLanguage(): SupportedLanguage | null {
 
   try {
     const stored = localStorage.getItem('monna-language');
-    if (stored && ['en', 'zh', 'ja', 'ko', 'fr', 'es', 'de'].includes(stored)) {
+    if (stored && ['en', 'zh'].includes(stored)) {
       return stored as SupportedLanguage;
     }
   } catch (error) {
@@ -65,7 +55,7 @@ function saveLanguageToStorage(language: SupportedLanguage) {
 }
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const [currentLanguage, setCurrentLanguage] = useState<SupportedLanguage>('en');
+  const [currentLanguage, setCurrentLanguage] = useState<SupportedLanguage>('zh'); // 默认中文
   const [isInitialized, setIsInitialized] = useState(false);
 
   // 初始化语言设置

@@ -112,7 +112,7 @@ export function Login({ mode = 'signin' }: { mode?: 'signin' | 'signup' }) {
         <div className="flex justify-center">
           <Image
             src="/figma-designs/monna_logo.png"
-            alt="Monna AI Logo"
+            alt="genRTL Logo"
             width={64}
             height={64}
             className="h-16 w-16 object-contain"

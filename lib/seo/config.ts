@@ -1,5 +1,5 @@
 /**
- * SEO Configuration for Monna AI
+ * SEO Configuration for genRTL
  * 包含所有SEO相关的配置，包括域名、元数据、结构化数据等
  */
 
@@ -10,7 +10,7 @@ export const SITE_CONFIG = {
   url: 'https://www.monna.us',
 
   // 品牌信息
-  name: 'Monna AI',
+  name: 'genRTL',
   alternateName: 'Monna',
 
   // 联系方式
@@ -32,22 +32,21 @@ export const SITE_CONFIG = {
 } as const;
 
 // 默认SEO元数据 (中文)
-// 默认SEO元数据 (中文)
 export const DEFAULT_SEO_ZH = {
-  title: 'Monna AI - 简单易用的AI图片与视频生成平台',
+  title: 'genRTL - 智能Verilog/SystemVerilog代码生成平台',
   description:
-    'Monna AI是一款简单易用的AI图片与视频生成平台，无需复杂提示词即可生成精美头像、证件照、艺术插画和短视频，支持多模型智能生成与一键编辑。',
+    'genRTL是一款智能硬件设计代码生成平台，通过自然语言描述自动生成高质量的Verilog/SystemVerilog代码，支持多种验证工具和CBB组件复用。',
   keywords:
-    'AI图片生成, AI视频生成, AI头像制作, AI证件照, AI艺术创作, 在线图片编辑, 短视频制作, 文生图, 文生视频',
+    'Verilog生成, SystemVerilog, RTL设计, 硬件描述语言, AI代码生成, HDL自动化, 硬件设计工具, FPGA开发',
 } as const;
 
 // 默认SEO元数据 (英文)
 export const DEFAULT_SEO_EN = {
-  title: 'Monna AI - Simple AI Image & Video Generation Platform',
+  title: 'genRTL - Intelligent Verilog/SystemVerilog Code Generator',
   description:
-    'Monna AI is a simple AI image and video generation platform that lets you create stunning avatars, portraits, artworks and short videos without complex prompts, powered by multiple advanced AI models.',
+    'genRTL is an intelligent hardware design code generation platform that automatically generates high-quality Verilog/SystemVerilog code from natural language descriptions, supporting multiple verification tools and CBB component reuse.',
   keywords:
-    'AI image generation, AI video generation, AI avatar maker, AI profile picture, AI art generator, image editing, video creation',
+    'Verilog generator, SystemVerilog, RTL design, HDL, AI code generation, hardware design automation, FPGA development',
 } as const;
 
 
@@ -55,34 +54,34 @@ export const DEFAULT_SEO_EN = {
 export const PAGE_SEO = {
   home: {
     zh: {
-      title: 'Monna AI - 简单易用的AI图片与视频生成平台',
-      description: 'Monna AI提供专业的AI图片和视频生成服务，支持多种AI模型。无需专业技能，轻松创建精美的AI作品。',
+      title: 'genRTL - 智能Verilog/SystemVerilog代码生成平台',
+      description: 'genRTL提供专业的硬件设计代码生成服务，支持多种AI模型。无需专业技能，轻松创建高质量的Verilog/SystemVerilog代码。',
     },
     en: {
-      title: 'Monna AI - Simple AI Image & Video Generation Platform',
-      description: 'Monna AI offers professional AI image and video generation services with multiple AI models. Create stunning AI artworks easily without professional skills.',
+      title: 'genRTL - Intelligent Verilog/SystemVerilog Code Generator',
+      description: 'genRTL offers professional hardware design code generation services with multiple AI models. Create high-quality Verilog/SystemVerilog code easily without extensive expertise.',
     },
   },
 
   generate: {
     zh: {
-      title: 'AI创作中心 - Monna AI',
-      description: '使用Monna AI的创作中心，通过DALL-E 3、Gemini、Ideogram、Runway等AI模型生成专业图片和视频。支持文字生成、图像编辑、视频制作等多种功能。',
+      title: 'RTL代码生成中心 - genRTL',
+      description: '使用genRTL的代码生成中心，通过GPT-4o、Claude Sonnet等AI模型生成专业的Verilog/SystemVerilog代码。支持Plan、Implement、Repair等多种功能。',
     },
     en: {
-      title: 'AI Creation Studio - Monna AI',
-      description: 'Use Monna AI Creation Studio to generate professional images and videos with DALL-E 3, Gemini, Ideogram, Runway. Supports text-to-image, image editing, video creation and more.',
+      title: 'RTL Code Generation Studio - genRTL',
+      description: 'Use genRTL Code Generation Studio to generate professional Verilog/SystemVerilog code with GPT-4o, Claude Sonnet. Supports Plan, Implement, Repair and more.',
     },
   },
 
   pricing: {
     zh: {
-      title: '定价方案 - Monna AI',
-      description: '查看Monna AI的定价方案，选择适合您的套餐。提供免费试用和多种付费方案，满足个人和企业用户的不同需求。',
+      title: '定价方案 - genRTL',
+      description: '查看genRTL的定价方案，选择适合您的套餐。提供免费试用和多种付费方案，满足个人和企业用户的不同需求。',
     },
     en: {
-      title: 'Pricing Plans - Monna AI',
-      description: 'View Monna AI pricing plans and choose the right package for you. Free trial and multiple paid plans available for individuals and businesses.',
+      title: 'Pricing Plans - genRTL',
+      description: 'View genRTL pricing plans and choose the right package for you. Free trial and multiple paid plans available for individuals and businesses.',
     },
   },
 } as const;

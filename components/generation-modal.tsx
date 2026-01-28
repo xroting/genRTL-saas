@@ -255,7 +255,7 @@ export function GenerationModal({ isOpen, onClose, jobId, templateName, generati
         const contentType = (generationType === 'video' || generationType === 'longvideo') ? '视频' : '头像';
         // 分享原始分辨率图片URL，不受预览缩放影响
         await navigator.share({
-          title: `Monna AI 生成的${contentType}`,
+          title: `genRTL 生成的${contentType}`,
           text: `使用 ${templateName} 模板生成的AI${contentType}`,
           url: jobData.result_url,
         });

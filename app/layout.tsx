@@ -15,13 +15,13 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_CONFIG.url),
   title: {
     default: DEFAULT_SEO_ZH.title,
-    template: '%s - Monna AI',
+    template: '%s - genRTL',
   },
   description: DEFAULT_SEO_ZH.description,
   keywords: DEFAULT_SEO_ZH.keywords,
-  authors: [{ name: 'Monna AI' }],
-  creator: 'Monna AI',
-  publisher: 'Monna AI',
+  authors: [{ name: 'genRTL' }],
+  creator: 'genRTL',
+  publisher: 'genRTL',
 
   // Open Graph
   openGraph: {
@@ -36,7 +36,7 @@ export const metadata: Metadata = {
         url: '/figma-designs/monna_logo.png',
         width: 1200,
         height: 630,
-        alt: 'Monna AI Logo',
+        alt: 'genRTL Logo',
       },
     ],
   },

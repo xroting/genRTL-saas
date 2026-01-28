@@ -12,7 +12,7 @@ export default function LoginPage() {
   const [countdown, setCountdown] = useState(0);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const returnTo = searchParams.get("returnTo") || "/";
+  const returnTo = searchParams.get("returnTo") || "/dashboard"; // Default to dashboard after login
   const sessionId = searchParams.get("sessionId"); // Get session ID from URL
   
   // Refs for OTP input boxes - 6 digits only
@@ -138,11 +138,15 @@ export default function LoginPage() {
         console.log("[Login] BroadcastChannel not available:", e);
       }
       
-      // Show success message and close
-      alert("✅ Login successful! Returning to VS Code...\n\nYou can close this window.");
+      // Redirect to dashboard or returnTo URL
+      console.log("[Login] Redirecting to:", returnTo);
+      
+      // Show success message briefly before redirect
+      setError(null);
+      
+      // Redirect after a short delay to allow state updates
       setTimeout(() => {
-        console.log("[Login] Closing window");
-        window.close();
+        router.push(returnTo);
       }, 500);
     } catch (err: any) {
       setError(err.message || "An error occurred");

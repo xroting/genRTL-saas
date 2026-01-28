@@ -104,7 +104,7 @@ export function MonnaCommunity({ onClose }: MonnnaCommunityProps) {
       <div className="border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Monna AI Community</h2>
+            <h2 className="text-2xl font-bold text-gray-900">genRTL Community</h2>
             <p className="text-sm text-gray-500 mt-1">探索用户创作的精彩角色迁移作品</p>
           </div>
 

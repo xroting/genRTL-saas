@@ -1896,7 +1896,7 @@ export default function GeneratePage() {
         <div className="flex items-center justify-between mb-8">
           {/* Logo */}
           <Link href="/" className="hover:opacity-80 transition-opacity">
-            <h1 className="text-2xl font-bold text-gray-900 cursor-pointer">Monna AI</h1>
+            <h1 className="text-2xl font-bold text-gray-900 cursor-pointer">genRTL</h1>
           </Link>
           
           {/* 右侧按钮组 */}
@@ -2203,7 +2203,7 @@ export default function GeneratePage() {
                     </Button>
                   </div>
 
-                  {/* Monna AI Community - Direct display of community videos */}
+                  {/* genRTL Community - Direct display of community videos */}
                   <div className="mt-12 border-t border-gray-200 pt-8">
                     <div className="mb-8 text-center">
                       <h2 className="text-4xl md:text-5xl font-black mb-3" style={{
@@ -2211,7 +2211,7 @@ export default function GeneratePage() {
                         textShadow: '0 0 20px rgba(197, 248, 42, 0.5), 0 0 40px rgba(197, 248, 42, 0.3)',
                         letterSpacing: '0.05em'
                       }}>
-                        MONNA AI COMMUNITY
+                        genRTL COMMUNITY
                       </h2>
                       <p className="text-sm text-gray-500">
                         {t('exploreFaceSwapCreations')}

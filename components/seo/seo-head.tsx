@@ -55,7 +55,7 @@ export function SEOHead({
       <meta property="og:title" content={title} />
       <meta property="og:description" content={description} />
       <meta property="og:image" content={ogImage} />
-      <meta property="og:site_name" content="Monna AI" />
+      <meta property="og:site_name" content="genRTL" />
 
       {/* Twitter Card */}
       <meta name="twitter:card" content="summary_large_image" />

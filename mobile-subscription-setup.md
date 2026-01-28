@@ -23,7 +23,7 @@
 2. 点击 "My Apps" → "+" → "New App"
 3. 填写应用信息:
    - **Platform**: iOS
-   - **Name**: Monna AI
+   - **Name**: genRTL
    - **Primary Language**: 简体中文 或 英语
    - **Bundle ID**: 选择你的应用 Bundle ID (例如: com.monna.ai)
    - **SKU**: 唯一标识符 (例如: monna-ai-001)
@@ -34,7 +34,7 @@
 2. 点击 **Create Subscription Group**
 3. 填写信息:
    - **Reference Name**: Monna Subscriptions
-   - **App Name**: Monna AI (用户看到的名称)
+   - **App Name**: genRTL (用户看到的名称)
 
 ### 步骤 3: 创建订阅产品
 
@@ -106,7 +106,7 @@
 1. 登录 [Google Play Console](https://play.google.com/console)
 2. 点击 "创建应用"
 3. 填写:
-   - **应用名称**: Monna AI
+   - **应用名称**: genRTL
    - **默认语言**: 简体中文
    - **应用类型**: 应用
    - **免费或付费**: 免费

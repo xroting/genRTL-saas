@@ -37,8 +37,8 @@ async function sendDeletionEmail(
   const confirmUrl = `${SITE_URL}/api/account-deletion/confirm?token=${token}`;
 
   const subject = isEN
-    ? 'Confirm your Monna AI account deletion request'
-    : '确认删除你的 Monna AI 账号';
+    ? 'Confirm your genRTL account deletion request'
+    : '确认删除你的 genRTL 账号';
 
   const emailBody = isEN
     ? `
@@ -46,7 +46,7 @@ async function sendDeletionEmail(
         <h1 style="color: #18181b; font-size: 24px; margin-bottom: 16px;">Account Deletion Request</h1>
 
         <p style="color: #3f3f46; font-size: 16px; line-height: 1.6; margin-bottom: 16px;">
-          We received a request to delete your Monna AI account associated with this email address.
+          We received a request to delete your genRTL account associated with this email address.
         </p>
 
         <p style="color: #3f3f46; font-size: 16px; line-height: 1.6; margin-bottom: 24px;">
@@ -76,7 +76,7 @@ async function sendDeletionEmail(
         <hr style="border: none; border-top: 1px solid #e4e4e7; margin: 24px 0;"/>
 
         <p style="color: #a1a1aa; font-size: 12px;">
-          Monna AI - XROTING TECHNOLOGY LLC<br/>
+          genRTL - XROTING TECHNOLOGY LLC<br/>
           This is an automated message, please do not reply.
         </p>
       </div>
@@ -86,7 +86,7 @@ async function sendDeletionEmail(
         <h1 style="color: #18181b; font-size: 24px; margin-bottom: 16px;">账号删除请求</h1>
 
         <p style="color: #3f3f46; font-size: 16px; line-height: 1.6; margin-bottom: 16px;">
-          我们收到了一个删除与此邮箱关联的 Monna AI 账号的请求。
+          我们收到了一个删除与此邮箱关联的 genRTL 账号的请求。
         </p>
 
         <p style="color: #3f3f46; font-size: 16px; line-height: 1.6; margin-bottom: 24px;">
@@ -116,7 +116,7 @@ async function sendDeletionEmail(
         <hr style="border: none; border-top: 1px solid #e4e4e7; margin: 24px 0;"/>
 
         <p style="color: #a1a1aa; font-size: 12px;">
-          Monna AI - XROTING TECHNOLOGY LLC<br/>
+          genRTL - XROTING TECHNOLOGY LLC<br/>
           这是一封自动邮件，请勿回复。
         </p>
       </div>
@@ -160,7 +160,7 @@ async function sendDeletionEmail(
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: 'Monna AI <noreply@xroting.com>',
+          from: 'genRTL <noreply@xroting.com>',
           to: email,
           subject,
           html: emailBody,

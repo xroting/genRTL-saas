@@ -1,5 +1,5 @@
 /**
- * Dynamic Sitemap for Monna AI
+ * Dynamic Sitemap for genRTL
  * 根据 SEO 最佳实践自动生成 sitemap.xml
  */
 

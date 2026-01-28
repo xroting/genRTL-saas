@@ -309,8 +309,8 @@ async function sendDeletionCompletionEmail(email: string, lang: string): Promise
   const isEN = lang === 'en';
 
   const subject = isEN
-    ? 'Your Monna AI account has been deleted'
-    : '你的 Monna AI 账号已被删除';
+    ? 'Your genRTL account has been deleted'
+    : '你的 genRTL 账号已被删除';
 
   const emailBody = isEN
     ? `
@@ -318,7 +318,7 @@ async function sendDeletionCompletionEmail(email: string, lang: string): Promise
         <h1 style="color: #18181b; font-size: 24px; margin-bottom: 16px;">Account Deleted</h1>
 
         <p style="color: #3f3f46; font-size: 16px; line-height: 1.6; margin-bottom: 16px;">
-          Your Monna AI account associated with <strong>${email}</strong> has been successfully deleted.
+          Your genRTL account associated with <strong>${email}</strong> has been successfully deleted.
         </p>
 
         <p style="color: #3f3f46; font-size: 16px; line-height: 1.6; margin-bottom: 16px;">
@@ -344,7 +344,7 @@ async function sendDeletionCompletionEmail(email: string, lang: string): Promise
         </div>
 
         <p style="color: #3f3f46; font-size: 16px; line-height: 1.6; margin-bottom: 16px;">
-          Thank you for using Monna AI. We're sorry to see you go.
+          Thank you for using genRTL. We're sorry to see you go.
         </p>
 
         <p style="color: #71717a; font-size: 14px; line-height: 1.6;">
@@ -355,7 +355,7 @@ async function sendDeletionCompletionEmail(email: string, lang: string): Promise
         <hr style="border: none; border-top: 1px solid #e4e4e7; margin: 24px 0;"/>
 
         <p style="color: #a1a1aa; font-size: 12px;">
-          Monna AI - XROTING TECHNOLOGY LLC<br/>
+          genRTL - XROTING TECHNOLOGY LLC<br/>
           This is an automated message, please do not reply.
         </p>
       </div>
@@ -365,7 +365,7 @@ async function sendDeletionCompletionEmail(email: string, lang: string): Promise
         <h1 style="color: #18181b; font-size: 24px; margin-bottom: 16px;">账号已删除</h1>
 
         <p style="color: #3f3f46; font-size: 16px; line-height: 1.6; margin-bottom: 16px;">
-          与 <strong>${email}</strong> 关联的 Monna AI 账号已成功删除。
+          与 <strong>${email}</strong> 关联的 genRTL 账号已成功删除。
         </p>
 
         <p style="color: #3f3f46; font-size: 16px; line-height: 1.6; margin-bottom: 16px;">
@@ -391,7 +391,7 @@ async function sendDeletionCompletionEmail(email: string, lang: string): Promise
         </div>
 
         <p style="color: #3f3f46; font-size: 16px; line-height: 1.6; margin-bottom: 16px;">
-          感谢你使用 Monna AI。很遗憾看到你离开。
+          感谢你使用 genRTL。很遗憾看到你离开。
         </p>
 
         <p style="color: #71717a; font-size: 14px; line-height: 1.6;">
@@ -402,7 +402,7 @@ async function sendDeletionCompletionEmail(email: string, lang: string): Promise
         <hr style="border: none; border-top: 1px solid #e4e4e7; margin: 24px 0;"/>
 
         <p style="color: #a1a1aa; font-size: 12px;">
-          Monna AI - XROTING TECHNOLOGY LLC<br/>
+          genRTL - XROTING TECHNOLOGY LLC<br/>
           这是一封自动邮件，请勿回复。
         </p>
       </div>
@@ -417,7 +417,7 @@ async function sendDeletionCompletionEmail(email: string, lang: string): Promise
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Monna AI <noreply@xroting.com>',
+        from: 'genRTL <noreply@xroting.com>',
         to: email,
         subject,
         html: emailBody,

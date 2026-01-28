@@ -260,7 +260,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
         <div className="flex justify-center mb-4">
           <Image
             src="/figma-designs/monna_logo.png"
-            alt="Monna AI Logo"
+            alt="genRTL Logo"
             width={64}
             height={64}
             className="h-16 w-16 object-contain"

@@ -11,7 +11,7 @@
 * **清晰声明语言**：在 `<html lang="zh-CN">`/`en-US` 正确标注；
 * **添加 `hreflang`**：如果同一内容有中/英等版本，用 `hreflang` 指明互为语言版本；同时给首页添加 `x-default` 指向语言选择/自动跳转页，减少“美国域名但页面是中文”的错配。([Google for Developers][3])
 
-> 我打开首页看到中文标题（“Monna AI - 简单易用的图片与视频生成平台”），建议同时提供 en-US 版并用 `hreflang` 正确互链。([monna.us][4])
+> 我打开首页看到中文标题（“genRTL - 简单易用的图片与视频生成平台”），建议同时提供 en-US 版并用 `hreflang` 正确互链。([monna.us][4])
 
 ## 3) 站点基础设施：Sitemap / robots / GSC
 
@@ -21,7 +21,7 @@
 
 ## 4) 元数据与标题策略
 
-* **标题与主标题一致、可读、含品牌**：让 `<title>` 与页面主可视标题语义一致、清晰传达主题并包含品牌（如“Monna AI — AI 图片与视频生成平台”/“Monna AI — AI Image & Video Generator”）。这有助于 Google 生成更稳定的 title link。([Google for Developers][7])
+* **标题与主标题一致、可读、含品牌**：让 `<title>` 与页面主可视标题语义一致、清晰传达主题并包含品牌（如“genRTL — AI 图片与视频生成平台”/“genRTL — AI Image & Video Generator”）。这有助于 Google 生成更稳定的 title link。([Google for Developers][7])
 * **描述（meta description）**：用自然语句概括价值与差异点，覆盖用户会搜索的关键词语。([Google for Developers][8])
 
 ## 5) JavaScript/Next.js 友好（非常关键）
@@ -75,7 +75,7 @@
 [1]: https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls?utm_source=chatgpt.com "How to specify a canonical URL with rel=\"canonical\" and ..."
 [2]: https://developers.google.com/search/docs/crawling-indexing/robots/intro?utm_source=chatgpt.com "Robots.txt Introduction and Guide | Google Search Central"
 [3]: https://developers.google.com/search/docs/specialty/international/localized-versions?utm_source=chatgpt.com "Localized Versions of your Pages | Google Search Central"
-[4]: https://www.monna.us/ "Monna AI - 简单易用的图片与视频生成平台"
+[4]: https://www.monna.us/ "genRTL - 简单易用的图片与视频生成平台"
 [5]: https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap?utm_source=chatgpt.com "Build and Submit a Sitemap | Google Search Central"
 [6]: https://developers.google.com/search/blog/2019/02/announcing-domain-wide-data-in-search?utm_source=chatgpt.com "Announcing domain-wide data in Search Console"
 [7]: https://developers.google.com/search/docs/appearance/title-link?utm_source=chatgpt.com "Influencing your title links in search results bookmark_border"

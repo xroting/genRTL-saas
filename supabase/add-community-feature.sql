@@ -1,4 +1,4 @@
--- 添加 Monna AI Community 社区分享功能
+-- 添加 genRTL Community 社区分享功能
 -- 包含分享表、点赞表及相关策略
 
 -- 1. 创建社区分享表

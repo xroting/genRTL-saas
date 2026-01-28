@@ -23,7 +23,7 @@
 1. 点击 **OAuth consent screen** 标签
 2. 选择 **External**（外部）用户类型
 3. 填写必填信息：
-   - **应用名称**：Monna AI
+   - **应用名称**：genRTL
    - **用户支持电子邮件**：您的邮箱
    - **开发者联系信息**：您的邮箱
 4. 点击 **Save and Continue**
@@ -40,7 +40,7 @@
 2. 点击 **Create Credentials** > **OAuth 2.0 Client ID**
 3. 选择应用类型：**Web application**
 4. 填写信息：
-   - **名称**：Monna AI Web Client
+   - **名称**：genRTL Web Client
    - **已获授权的 JavaScript 来源**：
      ```
      https://你的域名.com
@@ -92,7 +92,7 @@ https://你的项目ID.supabase.co/auth/v1/callback
 4. 选择 **App IDs** > **Continue**
 5. 选择 **App** > **Continue**
 6. 填写信息：
-   - **Description**：Monna AI
+   - **Description**：genRTL
    - **Bundle ID**：选择 **Explicit**，输入：`com.monna.ai`（或您的域名反向）
 7. 在 **Capabilities** 中，勾选 **Sign In with Apple**
 8. 点击 **Continue** > **Register**
@@ -103,7 +103,7 @@ https://你的项目ID.supabase.co/auth/v1/callback
 2. 点击 **+** 按钮
 3. 选择 **Services IDs** > **Continue**
 4. 填写信息：
-   - **Description**：Monna AI Web
+   - **Description**：genRTL Web
    - **Identifier**：`com.monna.ai.web`（或类似）
 5. 勾选 **Sign In with Apple**
 6. 点击 **Configure** 按钮
@@ -125,7 +125,7 @@ https://你的项目ID.supabase.co/auth/v1/callback
 1. 在左侧菜单选择 **Keys**
 2. 点击 **+** 按钮
 3. 填写信息：
-   - **Key Name**：Monna AI Sign In Key
+   - **Key Name**：genRTL Sign In Key
 4. 勾选 **Sign In with Apple**
 5. 点击 **Configure**
 6. 选择您的 **Primary App ID**

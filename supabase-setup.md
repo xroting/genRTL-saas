@@ -54,7 +54,7 @@ https://monna-saas-*-xroting-technology-llc.vercel.app/auth/callback
 #### 确认邮件模板
 ```html
 <h2>确认您的注册</h2>
-<p>感谢注册 Monna AI!</p>
+<p>感谢注册 genRTL!</p>
 <p>点击下面的链接确认您的邮箱:</p>
 <p><a href="{{ .ConfirmationURL }}">确认邮箱</a></p>
 ```
@@ -135,7 +135,7 @@ https://monna-saas-*-xroting-technology-llc.vercel.app/auth/callback
    Username: your-email@gmail.com
    Password: your-app-password
    Sender email: your-email@gmail.com
-   Sender name: Monna AI
+   Sender name: genRTL
    ```
 
 4. 点击 **Save**

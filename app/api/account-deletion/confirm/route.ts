@@ -167,7 +167,7 @@ function renderSuccessPage(email: string, lang: string): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${isEN ? 'Deletion Confirmed' : '删除已确认'} - Monna AI</title>
+  <title>${isEN ? 'Deletion Confirmed' : '删除已确认'} - genRTL</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -383,7 +383,7 @@ function renderErrorPage(messageEN: string, messageZH: string, lang: string): st
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${isEN ? 'Error' : '错误'} - Monna AI</title>
+  <title>${isEN ? 'Error' : '错误'} - genRTL</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
