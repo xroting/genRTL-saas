@@ -15,6 +15,9 @@ node_modules/
 .next/
 out/
 
+# Scripts (not needed in production)
+scripts/
+
 # Documentation that's not needed in production
 *.md
 !README.md

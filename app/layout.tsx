@@ -64,8 +64,9 @@ export const metadata: Metadata = {
 
   // Icons
   icons: {
-    icon: '/figma-designs/monna_logo.png',
-    apple: '/figma-designs/monna_logo.png',
+    icon: '/icon.png',
+    apple: '/icon.png',
+    shortcut: '/icon.png',
   },
 
   // Verification (添加实际的验证码)

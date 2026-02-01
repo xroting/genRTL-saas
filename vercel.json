@@ -4,5 +4,6 @@
     { "path": "/api/subscriptions/check-expiry", "schedule": "0 9 * * *" }
   ],
   "buildCommand": "pnpm run build",
-  "installCommand": "pnpm install --no-frozen-lockfile"
+  "installCommand": "pnpm install --no-frozen-lockfile",
+  "framework": "nextjs"
 }

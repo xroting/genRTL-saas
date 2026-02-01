@@ -12,7 +12,13 @@ const nextConfig: NextConfig = {
   ],
   experimental: {
     ppr: false,  // 暂时关闭 PPR
-    webpackBuildWorker: true
+    webpackBuildWorker: true,
+  },
+  
+  // 确保 TypeScript 类型检查不影响构建
+  typescript: {
+    // 在构建时忽略 TypeScript 错误（如果需要）
+    ignoreBuildErrors: false,
   },
 
   // 域名重定向：非 www 域名重定向到 www 域名 (SEO 最佳实践)
