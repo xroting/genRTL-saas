@@ -32,9 +32,9 @@ export async function POST(request: NextRequest) {
     console.log(`   Type: ${payload.notificationType}`);
     console.log(`   Environment: ${payload.data.environment}`);
 
-    // 3. 解码交易信息
-    const { decodeJwt } = await import('jose');
-    const transactionInfo = decodeJwt(payload.data.signedTransactionInfo) as any;
+    // 3. 解码并验证交易信息签名
+    const { verifyAppleJWT } = await import('@/lib/security/webhook-verification');
+    const transactionInfo = await verifyAppleJWT(payload.data.signedTransactionInfo) as any;
 
     console.log(`   Product ID: ${transactionInfo.productId}`);
     console.log(`   Transaction ID: ${transactionInfo.transactionId}`);
@@ -133,8 +133,9 @@ export async function POST(request: NextRequest) {
 
       case 'DID_CHANGE_RENEWAL_STATUS':
         // 自动续订状态变更
+        const { verifyAppleJWT: verifyRenewal } = await import('@/lib/security/webhook-verification');
         const renewalInfo = payload.data.signedRenewalInfo
-          ? decodeJwt(payload.data.signedRenewalInfo) as any
+          ? await verifyRenewal(payload.data.signedRenewalInfo) as any
           : null;
 
         const autoRenewing = renewalInfo?.autoRenewStatus === 1;

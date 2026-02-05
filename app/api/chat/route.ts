@@ -149,12 +149,8 @@ function convertMessagesToAnthropic(messages: GenRTLMessage[]): {
   return { systemPrompt: extractedSystemPrompt, anthropicMessages };
 }
 
-// CORS headers
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
-};
+// 导入安全的 CORS 配置
+import { getCorsHeaders } from '@/lib/security/cors';
 
 interface ChatRequest {
   messages: GenRTLMessage[];
@@ -166,21 +162,30 @@ interface ChatRequest {
 }
 
 export async function OPTIONS(req: NextRequest) {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
   return NextResponse.json({}, { headers: corsHeaders });
 }
 
 export async function POST(req: NextRequest) {
+  // 生成请求ID用于日志追踪
+  const requestId = `chat_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+  
+  // 获取安全的 CORS headers
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
+  
   try {
     const requestBody: ChatRequest = await req.json();
-    console.log("📥 Received chat request:", {
+    console.log(`📥 [${requestId}] Received chat request:`, {
       messageCount: requestBody.messages?.length || 0,
       model: requestBody.model,
       stream: requestBody.stream,
       toolsCount: requestBody.tools?.length || 0,
     });
-    // 打印消息角色序列，用于调试多轮对话
+    // 打印消息角色序列，用于调试多轮对话（不打印内容）
     const roleSequence = requestBody.messages?.map((m: any) => `${m.role}${m.tool_calls ? '(tool_calls)' : ''}${m.tool_call_id ? '(tool_result)' : ''}`).join(' -> ');
-    console.log(`📜 Message roles: ${roleSequence}`);
+    console.log(`📜 [${requestId}] Message roles: ${roleSequence}`);
 
     const { messages, stream = false, max_tokens = 16384, tools } = requestBody;
 
@@ -198,8 +203,7 @@ export async function POST(req: NextRequest) {
 
     if (authHeader?.startsWith("Bearer ")) {
       const token = authHeader.substring(7);
-      console.log(`[Auth Debug] Token received (first 50 chars): ${token.substring(0, 50)}...`);
-      console.log(`[Auth Debug] Token length: ${token.length}`);
+      console.log(`[${requestId}] [Auth] Token authentication attempt, length: ${token.length}`);
       
       const { createClient } = await import("@supabase/supabase-js");
       const authClient = createClient(
@@ -208,7 +212,11 @@ export async function POST(req: NextRequest) {
       );
       const { data: { user: tokenUser }, error: authError } = await authClient.auth.getUser(token);
       
-      console.log(`[Auth Debug] getUser result: user=${tokenUser ? tokenUser.email : 'null'}, error=${authError ? authError.message : 'none'}`);
+      if (authError) {
+        console.log(`[${requestId}] [Auth] Authentication failed: ${authError.message}`);
+      } else {
+        console.log(`[${requestId}] [Auth] User authenticated: ${tokenUser?.id}`);
+      }
       
       user = tokenUser;
       supa = createClient(
@@ -223,12 +231,14 @@ export async function POST(req: NextRequest) {
     }
 
     if (!user) {
-      console.log("❌ Unauthenticated request - authentication required");
+      console.log(`❌ [${requestId}] Unauthenticated request - authentication required`);
       return NextResponse.json(
         { error: "Authentication required. Please sign in to use the chat." },
         { status: 401, headers: corsHeaders }
       );
     }
+    
+    console.log(`✅ [${requestId}] User authenticated: ${user.id}`);
 
     // Anthropic API setup
     const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
@@ -255,8 +265,8 @@ export async function POST(req: NextRequest) {
     // Convert messages
     const { systemPrompt: extractedSystem, anthropicMessages } = convertMessagesToAnthropic(messages);
     const finalSystemPrompt = systemPrompt + (extractedSystem ? "\n\n" + extractedSystem : "");
-    // 打印转换后的 Anthropic 消息格式，用于调试
-    console.log(`📋 Anthropic messages structure:`);
+    // 打印转换后的 Anthropic 消息格式（不打印内容）
+    console.log(`📋 [${requestId}] Anthropic messages structure:`);
     anthropicMessages.forEach((msg, i) => {
       const contentType = Array.isArray(msg.content) 
         ? msg.content.map((c: any) => c.type).join(', ')
@@ -272,20 +282,14 @@ export async function POST(req: NextRequest) {
     );
     const mergedTools: Anthropic.Tool[] = [...SERVER_TOOLS, ...filteredClientTools];
 
-    console.log(`📊 Tools: server=${SERVER_TOOLS.length}, client=${filteredClientTools.length}, total=${mergedTools.length}`);
-    console.log(`📊 Tool names: ${mergedTools.map(t => t.name).join(', ')}`);
-    console.log(`📊 Messages: ${anthropicMessages.length}, max_tokens: ${max_tokens}`);
-    // 打印原始请求工具和转换后工具的对比
-    if (tools && tools.length > 0) {
-      console.log(`📊 Raw client tool (first):`, JSON.stringify(tools[0], null, 2));
-    }
-    if (filteredClientTools.length > 0) {
-      console.log(`📊 Converted Anthropic tool (first):`, JSON.stringify(filteredClientTools[0], null, 2));
-    }
+    console.log(`📊 [${requestId}] Tools: server=${SERVER_TOOLS.length}, client=${filteredClientTools.length}, total=${mergedTools.length}`);
+    console.log(`📊 [${requestId}] Tool names: ${mergedTools.map(t => t.name).join(', ')}`);
+    console.log(`📊 [${requestId}] Messages: ${anthropicMessages.length}, max_tokens: ${max_tokens}`);
+    
     // 检查工具是否有有效的 input_schema
     const invalidTools = mergedTools.filter(t => !t.input_schema || !t.input_schema.type);
     if (invalidTools.length > 0) {
-      console.log(`⚠️ Invalid tools (missing input_schema):`, invalidTools.map(t => t.name).join(', '));
+      console.log(`⚠️ [${requestId}] Invalid tools (missing input_schema):`, invalidTools.map(t => t.name).join(', '));
     }
 
     if (stream) {
@@ -316,7 +320,7 @@ export async function POST(req: NextRequest) {
         tool_choice: { type: "auto" },
           });
 
-      console.log("✅ Claude stream started");
+      console.log(`✅ [${requestId}] Claude stream started`);
 
           const encoder = new TextEncoder();
           const readable = new ReadableStream({
@@ -330,7 +334,7 @@ export async function POST(req: NextRequest) {
               if (event.type === 'content_block_start') {
                 const block = (event as any).content_block;
                 if (block?.type === 'tool_use') {
-                  console.log(`🔧 Tool call: ${block.name}`);
+                  console.log(`🔧 [${requestId}] Tool call: ${block.name}`);
                   const chunk = {
                     id: `chatcmpl-${Date.now()}`,
                     object: "chat.completion.chunk",
@@ -360,7 +364,7 @@ export async function POST(req: NextRequest) {
                   const textContent = delta.text || "";
                   // 检测 Claude 是否在文本中输出了 JSON 格式的工具调用
                   if (textContent.includes('"type":"tool_use"') || textContent.includes('"type": "tool_use"')) {
-                    console.log(`⚠️ Detected tool_use in text delta! Claude is outputting tool calls as text instead of using API. Text: ${textContent.substring(0, 200)}...`);
+                    console.log(`⚠️ [${requestId}] Claude outputting tool calls as text instead of using API`);
                   }
                   const chunk = {
                     id: `chatcmpl-${Date.now()}`,
@@ -398,7 +402,7 @@ export async function POST(req: NextRequest) {
               } else if (event.type === 'message_stop') {
                 finalMessage = await streamResponse.finalMessage();
                 const hasToolUse = finalMessage.content.some((b: any) => b.type === 'tool_use');
-                console.log(`📤 Stream finished: hasToolUse=${hasToolUse}, stop_reason=${finalMessage.stop_reason}, usage=${JSON.stringify(finalMessage.usage)}`);
+                console.log(`📤 [${requestId}] Stream finished: hasToolUse=${hasToolUse}, stop_reason=${finalMessage.stop_reason}, tokens=${finalMessage.usage.input_tokens}+${finalMessage.usage.output_tokens}`);
                 const chunk = {
                   id: `chatcmpl-${Date.now()}`,
                   object: "chat.completion.chunk",
@@ -422,9 +426,9 @@ export async function POST(req: NextRequest) {
                 
                 // 如果没有team，自动创建
                 if (!team) {
-                  console.log('🏗️ User has no team, creating one...');
+                  console.log(`🏗️ [${requestId}] User has no team, creating one...`);
                   team = await createUserTeam(user, supa);
-                  console.log('✅ Team created:', team?.id);
+                  console.log(`✅ [${requestId}] Team created: ${team?.id}`);
                   
                   // 初始化 USD Pool
                   if (team) {
@@ -433,7 +437,7 @@ export async function POST(req: NextRequest) {
                       teamId: team.id,
                       planName: team.plan_name || 'free',
                     });
-                    console.log('✅ USD Pool initialized');
+                    console.log(`✅ [${requestId}] USD Pool initialized`);
                   }
                 }
                 
@@ -449,7 +453,7 @@ export async function POST(req: NextRequest) {
                   cachedInputTokens: (finalMessage.usage as any).cache_read_input_tokens || 0,
                 });
 
-                console.log(`💰 Calculated cost: $${usdCost.toFixed(6)} for ${finalMessage.usage.input_tokens} input + ${finalMessage.usage.output_tokens} output tokens (model: ${actualModel})`);
+                console.log(`💰 [${requestId}] Cost: $${usdCost.toFixed(6)}, tokens: ${finalMessage.usage.input_tokens}+${finalMessage.usage.output_tokens}, model: ${actualModel}`);
 
                 // 扣费
                 const chargeResult = await USDPoolManager.charge({
@@ -479,20 +483,20 @@ export async function POST(req: NextRequest) {
                     },
                   });
 
-                  console.log(`✅ Usage recorded: ${finalMessage.usage.input_tokens + finalMessage.usage.output_tokens} tokens, $${usdCost.toFixed(6)}, bucket: ${chargeResult.bucket}`);
+                  console.log(`✅ [${requestId}] Usage recorded: ${finalMessage.usage.input_tokens + finalMessage.usage.output_tokens} tokens, $${usdCost.toFixed(6)}, bucket: ${chargeResult.bucket}`);
                 } else {
-                  console.error(`❌ Failed to charge: ${chargeResult.error}`);
+                  console.error(`❌ [${requestId}] Failed to charge: ${chargeResult.error}`);
                 }
               } catch (usageError) {
-                console.error('❌ Failed to record usage:', usageError);
+                console.error(`❌ [${requestId}] Failed to record usage:`, usageError);
               }
             }
 
-            console.log("✅ Stream completed");
+            console.log(`✅ [${requestId}] Stream completed`);
                 controller.enqueue(encoder.encode('data: [DONE]\n\n'));
                 controller.close();
               } catch (error) {
-                console.error("❌ Stream error:", error);
+                console.error(`❌ [${requestId}] Stream error:`, error);
                 controller.error(error);
               }
             },
@@ -533,7 +537,7 @@ export async function POST(req: NextRequest) {
         tools: mergedTools,
       });
 
-      console.log("✅ Claude response received");
+      console.log(`✅ [${requestId}] Claude response received`);
 
       // 🔥 记录 Usage 到数据库
       if (user) {
@@ -543,9 +547,9 @@ export async function POST(req: NextRequest) {
           
           // 如果没有team，自动创建
           if (!team) {
-            console.log('🏗️ User has no team, creating one...');
+            console.log(`🏗️ [${requestId}] User has no team, creating one...`);
             team = await createUserTeam(user, supa);
-            console.log('✅ Team created:', team?.id);
+            console.log(`✅ [${requestId}] Team created: ${team?.id}`);
             
             // 初始化 USD Pool
             if (team) {
@@ -554,7 +558,7 @@ export async function POST(req: NextRequest) {
                 teamId: team.id,
                 planName: team.plan_name || 'free',
               });
-              console.log('✅ USD Pool initialized');
+              console.log(`✅ [${requestId}] USD Pool initialized`);
             }
           }
           
@@ -570,7 +574,7 @@ export async function POST(req: NextRequest) {
             cachedInputTokens: (completion.usage as any).cache_read_input_tokens || 0,
           });
 
-          console.log(`💰 Calculated cost: $${usdCost.toFixed(6)} for ${completion.usage.input_tokens} input + ${completion.usage.output_tokens} output tokens (model: ${actualModel})`);
+          console.log(`💰 [${requestId}] Cost: $${usdCost.toFixed(6)}, tokens: ${completion.usage.input_tokens}+${completion.usage.output_tokens}, model: ${actualModel}`);
 
           // 扣费
           const chargeResult = await USDPoolManager.charge({
@@ -601,12 +605,12 @@ export async function POST(req: NextRequest) {
               },
             });
 
-            console.log(`✅ Usage recorded: ${completion.usage.input_tokens + completion.usage.output_tokens} tokens, $${usdCost.toFixed(6)}, bucket: ${chargeResult.bucket}`);
+            console.log(`✅ [${requestId}] Usage recorded: ${completion.usage.input_tokens + completion.usage.output_tokens} tokens, $${usdCost.toFixed(6)}, bucket: ${chargeResult.bucket}`);
           } else {
-            console.error(`❌ Failed to charge: ${chargeResult.error}`);
+            console.error(`❌ [${requestId}] Failed to charge: ${chargeResult.error}`);
           }
         } catch (usageError) {
-          console.error('❌ Failed to record usage:', usageError);
+          console.error(`❌ [${requestId}] Failed to record usage:`, usageError);
         }
       }
 
@@ -631,7 +635,7 @@ export async function POST(req: NextRequest) {
           }, { headers: corsHeaders });
     }
         } catch (error: any) {
-    console.error("❌ Error:", error);
+    console.error(`❌ [${requestId}] Error:`, error.message || String(error));
     return NextResponse.json(
       { error: "API error", details: error?.message || String(error) },
       { status: error?.status || 500, headers: corsHeaders }

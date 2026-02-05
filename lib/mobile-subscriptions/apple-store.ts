@@ -181,22 +181,32 @@ export class AppleStoreService {
   }
 
   /**
-   * 解码签名的交易信息 (JWS)
+   * 解码并验证签名的交易信息 (JWS)
+   * 使用 Apple JWKS 验证签名
    */
   private async decodeSignedTransaction(signedTransaction: string): Promise<AppleTransactionInfo> {
-    // 简单解码JWT(不验证签名,因为来自Apple可信源)
-    const decoded = decodeJwt(signedTransaction) as any;
+    try {
+      // 导入验证函数
+      const { verifyAppleJWT } = await import('@/lib/security/webhook-verification');
+      
+      // 验证 JWT 签名
+      const decoded = await verifyAppleJWT(signedTransaction) as any;
 
-    return {
-      originalTransactionId: decoded.originalTransactionId,
-      transactionId: decoded.transactionId,
-      productId: decoded.productId,
-      purchaseDate: decoded.purchaseDate,
-      expiresDate: decoded.expiresDate,
-      quantity: decoded.quantity || 1,
-      type: decoded.type,
-      environment: decoded.environment
-    };
+      return {
+        originalTransactionId: decoded.originalTransactionId,
+        transactionId: decoded.transactionId,
+        productId: decoded.productId,
+        purchaseDate: decoded.purchaseDate,
+        expiresDate: decoded.expiresDate,
+        quantity: decoded.quantity || 1,
+        type: decoded.type,
+        environment: decoded.environment
+      };
+    } catch (error: any) {
+      console.error('❌ [Apple] Transaction signature verification failed:', error.message);
+      // 验证失败时拒绝处理
+      throw new Error('Invalid transaction signature');
+    }
   }
 
   /**
@@ -300,18 +310,28 @@ export class AppleStoreService {
   }
 
   /**
-   * 解码签名的负载 (JWS)
+   * 解码并验证签名的负载 (JWS)
+   * 使用 Apple JWKS 验证签名
    */
   private async decodeSignedPayload(signedPayload: string): Promise<AppleDecodedPayload> {
-    // 简单解码JWT
-    const decoded = decodeJwt(signedPayload) as any;
+    try {
+      // 导入验证函数
+      const { verifyAppleJWT } = await import('@/lib/security/webhook-verification');
+      
+      // 验证 JWT 签名
+      const decoded = await verifyAppleJWT(signedPayload) as any;
 
-    return {
-      notificationType: decoded.notificationType,
-      subtype: decoded.subtype,
-      data: decoded.data,
-      notificationUUID: decoded.notificationUUID
-    };
+      return {
+        notificationType: decoded.notificationType,
+        subtype: decoded.subtype,
+        data: decoded.data,
+        notificationUUID: decoded.notificationUUID
+      };
+    } catch (error: any) {
+      console.error('❌ [Apple] Payload signature verification failed:', error.message);
+      // 验证失败时拒绝处理
+      throw new Error('Invalid payload signature');
+    }
   }
 
   /**

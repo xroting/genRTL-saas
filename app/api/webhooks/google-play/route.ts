@@ -16,12 +16,22 @@ export async function POST(request: NextRequest) {
   console.log(`\n========== GOOGLE PLAY WEBHOOK START (${timestamp}) ==========`);
 
   try {
-    // 1. 解析Pub/Sub消息
+    // 1. 验证 Pub/Sub JWT token
+    const { verifyGooglePubSubToken } = await import('@/lib/security/webhook-verification');
+    const authHeader = request.headers.get('Authorization');
+    
+    const isValid = await verifyGooglePubSubToken(authHeader);
+    if (!isValid) {
+      console.error('❌ [Google Play Webhook] Invalid Pub/Sub token');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // 2. 解析Pub/Sub消息
     const body = await request.json();
 
-    console.log('🤖 [Google Play Webhook] Notification received');
+    console.log('🤖 [Google Play Webhook] Notification received and verified');
 
-    // 2. 处理通知
+    // 3. 处理通知
     const notification = await googlePlayService.handleDeveloperNotification(body);
 
     if (!notification) {
@@ -29,13 +39,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true });
     }
 
-    // 3. 处理测试通知
+    // 4. 处理测试通知
     if (notification.testNotification) {
       console.log('✅ [Google Play Webhook] Test notification received');
       return NextResponse.json({ received: true });
     }
 
-    // 4. 处理订阅通知
+    // 5. 处理订阅通知
     if (!notification.subscriptionNotification) {
       console.log('⚠️ [Google Play Webhook] Not a subscription notification');
       return NextResponse.json({ received: true });
@@ -47,7 +57,7 @@ export async function POST(request: NextRequest) {
     console.log(`   Subscription ID: ${subNotification.subscriptionId}`);
     console.log(`   Purchase Token: ${subNotification.purchaseToken.substring(0, 20)}...`);
 
-    // 5. 查找对应的订阅记录
+    // 6. 查找对应的订阅记录
     const supabase = createSupabaseServiceRole();
     const { data: subscription, error: subError } = await supabase
       .from('mobile_subscriptions')
@@ -72,7 +82,7 @@ export async function POST(request: NextRequest) {
     console.log(`   User ID: ${subscription.user_id}`);
     console.log(`   Team ID: ${subscription.team_id}`);
 
-    // 6. 根据通知类型处理
+    // 7. 根据通知类型处理
     switch (subNotification.notificationType) {
       case 1: // SUBSCRIPTION_RECOVERED
         console.log('✅ [Google Play Webhook] Subscription recovered');

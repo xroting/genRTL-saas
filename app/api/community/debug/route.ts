@@ -1,12 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { verifyDebugAccess } from '@/lib/security/webhook-verification';
 
 /**
  * DEBUG ONLY - 用于调试社区分享数据
  * 使用 service role 绕过 RLS 策略直接查询数据库
+ * 
+ * ⚠️ 安全限制:
+ * - 仅在开发/预览环境可用 (生产环境强制禁用)
+ * - 需要设置环境变量 ENABLE_DEBUG_ENDPOINTS=true
+ * - 需要管理员权限
  */
 export async function GET(request: NextRequest) {
   try {
+    // 验证访问权限
+    const accessCheck = await verifyDebugAccess(request);
+    if (!accessCheck.allowed) {
+      console.warn('⚠️ [Community Debug] Access denied:', accessCheck.reason);
+      return NextResponse.json(
+        { error: 'Access denied', reason: accessCheck.reason },
+        { status: 403 }
+      );
+    }
     // 使用 service role 客户端（绕过 RLS）
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,

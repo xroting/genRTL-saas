@@ -1,11 +1,26 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/payments/stripe';
+import { verifyDebugAccess } from '@/lib/security/webhook-verification';
 
 /**
  * 测试支付宝支付方式是否可用
  * 访问: /api/test-alipay
+ * 
+ * ⚠️ 安全限制:
+ * - 仅在开发/预览环境可用 (生产环境强制禁用)
+ * - 需要设置环境变量 ENABLE_DEBUG_ENDPOINTS=true
+ * - 需要管理员权限
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // 验证访问权限
+  const accessCheck = await verifyDebugAccess(request);
+  if (!accessCheck.allowed) {
+    console.warn('⚠️ [Test Alipay] Access denied:', accessCheck.reason);
+    return NextResponse.json(
+      { error: 'Access denied', reason: accessCheck.reason },
+      { status: 403 }
+    );
+  }
   try {
     console.log('[test-alipay] Testing Alipay payment method availability...');
 

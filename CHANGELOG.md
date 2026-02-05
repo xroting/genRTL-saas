@@ -4,6 +4,389 @@
 
 ---
 
+## 2026-02-04
+
+### 🔒 安全审计与修复（第二轮）- API费用保护、日志安全与CORS限制
+
+**更新日期**: 2026-02-04 (下午)
+
+**问题背景**:
+第二轮安全审计发现了4个安全问题,涉及API费用滥用、配置泄露、日志安全和CORS配置:
+
+1. **翻译接口未鉴权** - Gemini API费用被刷、配额耗尽
+2. **环境变量枚举接口** - 配置信息泄露
+3. **聊天接口日志暴露敏感信息** - Token泄露、内容暴露
+4. **CORS配置过于宽松** - 允许任意源访问API
+
+**修复详情**:
+
+#### 1. 删除未鉴权的翻译接口
+
+**问题**: `/api/translate` 无鉴权调用 Gemini 进行翻译,任何人可刷量。
+
+**修复**:
+- ❌ **删除** `app/api/translate/route.ts` 翻译接口
+- 理由: 
+  - 无业务需求支撑(镜头翻译已在前端处理)
+  - 成本高昂且易被滥用
+  - Gemini API有严格的配额限制
+
+**影响**: 防止API费用被恶意刷取,保护Gemini配额。
+
+#### 2. 环境变量枚举接口保护
+
+**问题**: `/api/test-env` 返回所有 `NEXT_PUBLIC_*` 环境变量,包括 Supabase anon key。
+
+**修复**:
+- ✅ 添加 `verifyDebugAccess()` 访问控制
+- ✅ 脱敏处理: 长字符串显示首尾,隐藏中间部分
+- ✅ 三层保护机制(环境开关 + 生产禁用 + 管理员验证)
+
+**修改文件**:
+- `app/api/test-env/route.ts` - 添加访问控制和脱敏处理
+
+```typescript
+// 脱敏处理
+if (value && value.length > 20) {
+  acc[key] = value.substring(0, 10) + '...' + value.substring(value.length - 5);
+}
+```
+
+#### 3. 聊天接口日志安全清理
+
+**问题**: 
+- 日志打印 Bearer token 前 50 位
+- 日志打印完整消息结构和工具参数
+- 可能通过日志系统泄露敏感信息
+
+**修复**:
+- ✅ 移除所有 token 打印
+- ✅ 使用 `requestId` 替代详细内容追踪
+- ✅ 仅记录必要的元数据(角色序列、token数量、成本)
+- ✅ 不再打印完整消息内容和工具参数
+
+**修改文件**:
+- `app/api/chat/route.ts` - 清理所有敏感日志,添加 requestId 追踪
+
+**修改示例**:
+```typescript
+// 修改前
+console.log(`[Auth Debug] Token received (first 50 chars): ${token.substring(0, 50)}...`);
+console.log(`Raw client tool (first):`, JSON.stringify(tools[0], null, 2));
+
+// 修改后
+const requestId = `chat_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+console.log(`[${requestId}] [Auth] Token authentication attempt, length: ${token.length}`);
+console.log(`[${requestId}] Tool names: ${mergedTools.map(t => t.name).join(', ')}`);
+```
+
+#### 4. CORS安全配置限制
+
+**问题**: 多个端点使用 `Access-Control-Allow-Origin: *`,允许任意源访问。
+
+**影响端点**:
+- `/api/chat`
+- `/api/auth/signup`
+- `/api/auth/verify-otp`
+
+**修复**:
+- ✅ 创建统一的 CORS 安全配置模块
+- ✅ 限制允许的源域名列表
+- ✅ 动态设置 `Access-Control-Allow-Origin`
+- ✅ 添加 `Vary: Origin` header
+
+**新增文件**:
+- `lib/security/cors.ts` - CORS 安全配置模块
+
+**允许的源域名**:
+```typescript
+const ALLOWED_ORIGINS = [
+  // 生产域名
+  'https://www.monna.us',
+  'https://monna.us',
+  'https://www.genrtl.com',
+  'https://genrtl.com',
+  
+  // Vercel 预览部署
+  /^https:\/\/.*\.vercel\.app$/,
+  
+  // 本地开发
+  'http://localhost:3000',
+  'http://localhost:3005',
+];
+```
+
+**修改文件**:
+- `lib/security/cors.ts` - 新建 CORS 配置模块
+- `app/api/chat/route.ts` - 使用 `getCorsHeaders()`
+- `app/api/auth/signup/route.ts` - 使用 `getCorsHeaders()`
+- `app/api/auth/verify-otp/route.ts` - 使用 `getCorsHeaders()`
+
+**技术实现**:
+```typescript
+// 动态CORS headers
+export function getCorsHeaders(requestOrigin: string | null): Record<string, string> {
+  const isAllowed = isOriginAllowed(requestOrigin);
+  
+  if (isAllowed && requestOrigin) {
+    return {
+      'Access-Control-Allow-Origin': requestOrigin,
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Credentials': 'true',
+      'Vary': 'Origin',
+    };
+  }
+  
+  return {}; // 不允许的来源
+}
+```
+
+**安全影响评估**:
+
+| 问题 | 修复前严重程度 | 修复后状态 | 影响 |
+|------|--------------|-----------|------|
+| 翻译接口未鉴权 | 🟡 中危 | ✅ 已删除 | 完全消除API费用滥用风险 |
+| 环境变量枚举 | 🟡 中危 | ✅ 已保护 | 防止配置泄露 |
+| 日志暴露敏感信息 | 🟠 高危 | ✅ 已清理 | 防止token和内容泄露 |
+| CORS配置宽松 | 🟡 中危 | ✅ 已限制 | 缩小攻击面 |
+
+**部署验证**:
+
+```bash
+# 1. 验证翻译接口已删除
+curl https://your-domain.com/api/translate
+# 应该返回: 404 Not Found
+
+# 2. 验证环境变量接口保护
+curl https://your-domain.com/api/test-env
+# 应该返回: 403 Access denied
+
+# 3. 检查聊天日志不再包含敏感信息
+# 查看 Vercel logs,确认无 token 打印
+
+# 4. 验证CORS限制
+curl -H "Origin: https://malicious-site.com" https://your-domain.com/api/chat
+# 应该没有 Access-Control-Allow-Origin header
+```
+
+**状态**: ✅ 已完成
+
+---
+
+### 🔒 安全审计与修复（第一轮）- Webhook 签名验证与调试端点保护
+
+**更新日期**: 2026-02-04 (上午)
+
+**问题背景**:
+代码审计发现了4个严重的安全漏洞，可能导致订阅伪造、积分篡改、数据泄露和未授权访问:
+
+1. **订阅回调缺少签名校验** - 攻击者可伪造 Apple/Google Play 订阅事件
+2. **调试接口公开** - 使用 Service Role 无鉴权访问全表数据
+3. **Inngest 调试端点暴露** - 暴露密钥配置且禁用签名验证
+4. **测试支付接口公开** - 无鉴权创建 Stripe Checkout Session
+
+**修复详情**:
+
+#### 1. Apple App Store Webhook 签名验证
+
+**问题**: 仅使用 `decodeJwt` 解码 JWT，未验证签名，攻击者可伪造订阅续费/退款事件。
+
+**修复**:
+- 创建 `lib/security/webhook-verification.ts` 安全验证模块
+- 使用 Apple JWKS (https://appleid.apple.com/auth/keys) 验证 JWT 签名
+- 验证 `signedPayload`, `signedTransactionInfo`, `signedRenewalInfo` 所有签名字段
+- 签名验证失败时拒绝处理并抛出错误
+
+**修改文件**:
+- `lib/security/webhook-verification.ts` - 新建签名验证工具
+- `lib/mobile-subscriptions/apple-store.ts` - 更新 `decodeSignedTransaction()` 和 `decodeSignedPayload()` 方法使用签名验证
+- `app/api/webhooks/apple/route.ts` - 添加 `signedTransactionInfo` 和 `signedRenewalInfo` 签名验证
+
+```typescript
+// 验证 Apple JWT 签名示例
+export async function verifyAppleJWT(signedToken: string): Promise<any> {
+  const JWKS = createRemoteJWKSet(new URL('https://appleid.apple.com/auth/keys'));
+  const { payload } = await jwtVerify(signedToken, JWKS, {
+    issuer: 'https://appleid.apple.com',
+    audience: process.env.APPLE_BUNDLE_ID,
+  });
+  return payload;
+}
+```
+
+#### 2. Google Play RTDN Webhook 签名验证
+
+**问题**: 未验证 Pub/Sub Push 请求的 JWT Authorization Bearer token，攻击者可伪造 Google Play 通知。
+
+**修复**:
+- 验证 `Authorization: Bearer` header 中的 JWT token
+- 使用 Google OAuth2 JWKS 验证签名
+- 验证 `iss` (issuer) 和 `email` (service account) 字段
+- 签名验证失败时返回 401 Unauthorized
+
+**修改文件**:
+- `lib/security/webhook-verification.ts` - 添加 `verifyGooglePubSubToken()` 方法
+- `app/api/webhooks/google-play/route.ts` - 添加 Pub/Sub JWT 验证
+
+```typescript
+// 验证 Google Pub/Sub token 示例
+export async function verifyGooglePubSubToken(authHeader: string): Promise<boolean> {
+  const token = authHeader.replace('Bearer ', '');
+  const JWKS = createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
+  const { payload } = await jwtVerify(token, JWKS, {
+    issuer: ['accounts.google.com', 'https://accounts.google.com'],
+  });
+  return payload.email === 'google-play-developer-notifications@system.gserviceaccount.com';
+}
+```
+
+#### 3. 调试接口访问控制
+
+**问题**: 
+- `app/api/community/debug/route.ts` - 使用 Service Role 无鉴权读取全表
+- `app/api/inngest-debug/route.ts` - 暴露环境变量和密钥前缀
+- `app/api/inngest-test/route.ts` - 禁用 Inngest 签名验证
+
+**修复**:
+- 创建 `verifyDebugAccess()` 统一验证函数
+- **三层保护机制**:
+  1. 环境变量开关: `ENABLE_DEBUG_ENDPOINTS=true` (默认 false)
+  2. 生产环境强制禁用: `NODE_ENV=production && VERCEL_ENV=production`
+  3. 管理员权限验证: 检查用户 role 是否为 `admin` 或 `super_admin`
+- 所有调试端点添加访问验证，未授权返回 403 Forbidden
+
+**修改文件**:
+- `lib/security/webhook-verification.ts` - 添加 `verifyDebugAccess()` 方法
+- `app/api/community/debug/route.ts` - 添加访问控制
+- `app/api/inngest-debug/route.ts` - 添加访问控制
+- `app/api/inngest-test/route.ts` - 完全禁用端点，返回 410 Gone 并提示使用正式端点
+
+```typescript
+// 调试端点访问验证示例
+export async function verifyDebugAccess(request: Request) {
+  // 1. 检查环境变量开关
+  if (process.env.ENABLE_DEBUG_ENDPOINTS !== 'true') {
+    return { allowed: false, reason: 'Debug endpoints are disabled' };
+  }
+  
+  // 2. 生产环境强制禁用
+  if (process.env.NODE_ENV === 'production' && process.env.VERCEL_ENV === 'production') {
+    return { allowed: false, reason: 'Not available in production' };
+  }
+  
+  // 3. 验证管理员权限
+  const supabase = createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: profile } = await supabase
+    .from('users')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+    
+  if (profile?.role !== 'admin' && profile?.role !== 'super_admin') {
+    return { allowed: false, reason: 'Admin access required' };
+  }
+  
+  return { allowed: true };
+}
+```
+
+#### 4. 测试支付接口保护
+
+**问题**:
+- `app/api/test-stripe-config/route.ts` - 无鉴权创建多个 Stripe Checkout Session
+- `app/api/test-alipay/route.ts` - 无鉴权创建 Stripe Checkout Session
+
+**修复**:
+- 添加与调试端点相同的访问控制机制
+- 需要环境变量开关 + 管理员权限
+- 生产环境强制禁用
+
+**修改文件**:
+- `app/api/test-stripe-config/route.ts` - 添加 `verifyDebugAccess()` 验证
+- `app/api/test-alipay/route.ts` - 添加 `verifyDebugAccess()` 验证
+
+#### 5. 环境变量配置更新
+
+**修改文件**:
+- `.env.example` - 添加移动订阅和安全配置说明
+
+```bash
+# Mobile Subscriptions
+APPLE_KEY_ID=***
+APPLE_ISSUER_ID=***
+APPLE_PRIVATE_KEY=***
+APPLE_BUNDLE_ID=com.monna.ai
+APPLE_SHARED_SECRET=***
+GOOGLE_PLAY_PACKAGE_NAME=com.monna.ai
+GOOGLE_PLAY_SERVICE_ACCOUNT={"type":"service_account",...}
+
+# Security & Debug (Development Only)
+# ⚠️ NEVER set to 'true' in production
+ENABLE_DEBUG_ENDPOINTS=false
+```
+
+**安全影响评估**:
+
+| 漏洞 | 严重程度 | 影响 | 修复状态 |
+|------|---------|------|---------|
+| Apple Webhook 未验证签名 | 🔴 严重 | 订阅伪造、积分篡改、财务损失 | ✅ 已修复 |
+| Google Play Webhook 未验证签名 | 🔴 严重 | 订阅伪造、积分篡改、财务损失 | ✅ 已修复 |
+| 调试接口无鉴权 | 🔴 严重 | 数据泄露、RLS 策略暴露 | ✅ 已修复 |
+| Inngest 端点暴露 | 🟠 高危 | 配置泄露、未授权任务触发 | ✅ 已修复 |
+| 测试支付接口公开 | 🟡 中危 | 资源滥用、日志污染、费用异常 | ✅ 已修复 |
+
+**测试验证**:
+
+```bash
+# 1. 验证 Apple Webhook 签名验证
+# 使用无效签名的 JWT 应返回错误并拒绝处理
+
+# 2. 验证 Google Play Webhook Pub/Sub 验证
+# 缺少或无效的 Authorization header 应返回 401
+
+# 3. 验证调试端点访问控制
+# 未设置 ENABLE_DEBUG_ENDPOINTS 应返回 403
+# 非管理员用户应返回 403
+# 生产环境应强制禁用
+
+# 4. 验证测试支付接口保护
+# 与调试端点相同的验证逻辑
+```
+
+**部署注意事项**:
+
+1. **环境变量配置**:
+   - 确保生产环境 `ENABLE_DEBUG_ENDPOINTS` 未设置或设为 `false`
+   - 配置 Apple 和 Google Play 认证密钥
+
+2. **测试流程**:
+   - 在预览环境测试所有 webhook 签名验证
+   - 验证调试端点在生产环境完全禁用
+   - 测试真实的 Apple/Google Play 订阅事件
+
+3. **监控与告警**:
+   - 监控 webhook 签名验证失败率
+   - 监控未授权的调试端点访问尝试
+   - 设置异常订阅事件告警
+
+**依赖更新**:
+```json
+{
+  "jose": "^5.x" // JWT 验证和签名
+}
+```
+
+**参考文档**:
+- [Apple App Store Server Notifications](https://developer.apple.com/documentation/appstoreservernotifications)
+- [Google Play Real-time Developer Notifications](https://developer.android.com/google/play/billing/rtdn-reference)
+- [RFC 8252 - OAuth 2.0 for Native Apps](https://tools.ietf.org/html/rfc8252)
+
+**状态**: ✅ 已完成
+
+---
+
 ## 2026-02-01
 
 ### 🐛 修复 Vercel 部署 ReferenceError: __dirname is not defined 错误

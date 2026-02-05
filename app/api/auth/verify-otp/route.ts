@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase/server";
+import { getCorsHeaders } from "@/lib/security/cors";
 
 export async function POST(req: NextRequest) {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
+  
   try {
     const { email, otp } = await req.json();
 
@@ -28,17 +32,10 @@ export async function POST(req: NextRequest) {
 
     console.log("[Auth] OTP verified successfully for:", email);
 
-    // Enable CORS for VS Code extension
-    const response = NextResponse.json({
+    return NextResponse.json({
       user: data.user,
       session: data.session,
-    });
-
-    response.headers.set("Access-Control-Allow-Origin", "*");
-    response.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-    response.headers.set("Access-Control-Allow-Headers", "Content-Type");
-
-    return response;
+    }, { headers: corsHeaders });
   } catch (error) {
     console.error("[Auth] Unexpected error:", error);
     return NextResponse.json(
@@ -48,14 +45,12 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function OPTIONS() {
+export async function OPTIONS(req: NextRequest) {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
   return new NextResponse(null, {
     status: 200,
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-    },
+    headers: corsHeaders,
   });
 }
 

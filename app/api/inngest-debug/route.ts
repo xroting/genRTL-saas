@@ -1,12 +1,25 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { verifyDebugAccess } from "@/lib/security/webhook-verification";
 
 /**
  * Inngest 调试端点
- * 用于检查生产环境中的环境变量配置
+ * 用于检查环境变量配置
  *
- * ⚠️ 仅用于调试，部署后应立即删除此文件
+ * ⚠️ 安全限制:
+ * - 仅在开发/预览环境可用 (生产环境强制禁用)
+ * - 需要设置环境变量 ENABLE_DEBUG_ENDPOINTS=true
+ * - 需要管理员权限
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // 验证访问权限
+  const accessCheck = await verifyDebugAccess(request);
+  if (!accessCheck.allowed) {
+    console.warn('⚠️ [Inngest Debug] Access denied:', accessCheck.reason);
+    return NextResponse.json(
+      { error: 'Access denied', reason: accessCheck.reason },
+      { status: 403 }
+    );
+  }
   const eventKey = process.env.INNGEST_EVENT_KEY;
   const signingKey = process.env.INNGEST_SIGNING_KEY;
 
