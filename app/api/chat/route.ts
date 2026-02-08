@@ -12,6 +12,13 @@ import { getTeamForUser, createUserTeam } from "@/lib/db/queries";
 function getModelForPlan(planName: string): string {
   const plan = SUBSCRIPTION_PLANS[planName] || SUBSCRIPTION_PLANS.free;
   
+  // 🔥 允许通过环境变量强制指定模型（用于性能测试对比）
+  const forcedModel = process.env.FORCE_CHAT_MODEL;
+  if (forcedModel) {
+    console.log(`🔧 Using forced model from env: ${forcedModel}`);
+    return forcedModel;
+  }
+  
   // Free 计划使用 Claude Haiku 3（低成本模型）
   if (planName === 'free' || planName === 'hobby') {
     return 'claude-3-haiku-20240307';
@@ -24,21 +31,37 @@ function getModelForPlan(planName: string): string {
 // ============================================================================
 // 🔧 服务端 System Prompt - 针对 RTL 开发优化
 // ============================================================================
-const systemPrompt = `你是FPGA/ASIC数字前端工程师，精通Verilog/SystemVerilog。
+const systemPrompt = `You are an FPGA/ASIC digital front-end engineer, proficient in Verilog/SystemVerilog.
+1、You are proficient in Verilog/SystemVerilog HDL and can skillfully use Verilog/SystemVerilog HDL for digital circuit design;
+2、You are proficient in common digital front-end design techniques such as asynchronous clock domain crossing, state machines, pipelined (pipeline) design, ping-pong buffering, and other typical digital front-end design techniques;
+3、You are proficient in common verification methods in digital front-end design, such as UVM, SystemVerilog, C++, etc.;
+4、You are familiar with the resources of various Xilinx/Altera FPGA families (such as CLB, BRAM, DSP, SerDes, IO, etc.) and can allocate resources reasonably according to requirements;
+5、You are familiar with timing/clock constraints for various Xilinx/Altera FPGA families and can set timing constraints appropriately according to requirements;
 
-你有一系列工具可以使用来完成任务：
-- read_file: 读取文件内容
-- ls_dir: 列出目录内容
-- get_dir_tree: 获取目录树结构
-- edit_file: 编辑文件
-- create_file_or_folder: 创建文件或文件夹
-- delete_file_or_folder: 删除文件或文件夹
-- run_command: 运行终端命令
-- agent: 启动子任务代理执行复杂探索任务
-- finalize: 任务完成时调用
+In addition, you have a set of tools you can use to complete tasks:
+- read_file: Read file contents
+- ls_dir: List directory contents
+- get_dir_tree: Get the directory tree structure
+- edit_file: Edit a file
+- create_file_or_folder: Create a file or folder
+- delete_file_or_folder: Delete a file or folder
+- run_command: Run a terminal command
+- agent: Start a sub-task agent to perform complex exploration tasks
+- finalize: Call when the task is completed
 
-当需要执行操作时，直接调用相应的工具。
-任务完成后，调用 finalize 工具来总结结果。`;
+When you need to perform an operation, directly call the appropriate tool.
+After the task is completed, call the finalize tool to summarize the result.
+
+**IMPORTANT - Streaming Optimization**: 
+When using tools that generate large content (like rewrite_file, create_file_or_folder with code):
+1. Start streaming the tool arguments IMMEDIATELY after determining the tool name and file path
+2. Generate and stream code line by line as you think, without planning the entire file first
+3. Think incrementally: write each line/block, then immediately continue to the next
+4. Do NOT pause to mentally compose the full file before streaming - start streaming right away
+5. Your streaming speed directly impacts user experience - prioritize rapid, continuous output
+
+Please answer in the language of the prompt entered by the user. 
+For example, if the prompt is in Chinese, please answer in Chinese.`;
 
 // ============================================================================
 // 🔧 服务端固化的 Tools Schema（Anthropic 格式）
@@ -46,17 +69,17 @@ const systemPrompt = `你是FPGA/ASIC数字前端工程师，精通Verilog/Syste
 const SERVER_TOOLS: Anthropic.Tool[] = [
   {
     name: "finalize",
-    description: "任务完成时调用此工具来总结结果。这是结束 Agent 循环的唯一方式。",
+    description: "Call this tool to summarize results when the task is completed. This is the only way to end the Agent loop.",
     input_schema: {
       type: "object",
       properties: {
         summary: {
           type: "string",
-          description: "任务完成的总结",
+          description: "Summary of the completed task",
         },
         success: {
           type: "boolean",
-          description: "任务是否成功完成",
+          description: "Whether the task was completed successfully",
         },
       },
       required: ["summary", "success"],
@@ -253,11 +276,14 @@ export async function POST(req: NextRequest) {
     const anthropicConfig: any = { apiKey: anthropicApiKey };
 
     if (proxyUrl) {
-      console.log("🌐 Using proxy:", proxyUrl);
+      console.log(`🌐 [${requestId}] Using proxy: ${proxyUrl}`);
+      console.log(`⚠️ [${requestId}] Note: Proxy may introduce additional latency in streaming responses`);
       const proxyAgent = new ProxyAgent(proxyUrl);
       anthropicConfig.fetch = (url: any, init: any) => {
         return fetch(url, { ...init, dispatcher: proxyAgent } as any);
       };
+    } else {
+      console.log(`✅ [${requestId}] Direct connection to Anthropic API (no proxy)`);
     }
 
     const anthropic = new Anthropic(anthropicConfig);
@@ -327,14 +353,14 @@ export async function POST(req: NextRequest) {
             async start(controller) {
               try {
             let toolCallIndex = 0;
-
             let finalMessage: Anthropic.Message | null = null;
             
             for await (const event of streamResponse) {
+              const now = Date.now();
+              
               if (event.type === 'content_block_start') {
                 const block = (event as any).content_block;
                 if (block?.type === 'tool_use') {
-                  console.log(`🔧 [${requestId}] Tool call: ${block.name}`);
                   const chunk = {
                     id: `chatcmpl-${Date.now()}`,
                     object: "chat.completion.chunk",
@@ -402,7 +428,6 @@ export async function POST(req: NextRequest) {
               } else if (event.type === 'message_stop') {
                 finalMessage = await streamResponse.finalMessage();
                 const hasToolUse = finalMessage.content.some((b: any) => b.type === 'tool_use');
-                console.log(`📤 [${requestId}] Stream finished: hasToolUse=${hasToolUse}, stop_reason=${finalMessage.stop_reason}, tokens=${finalMessage.usage.input_tokens}+${finalMessage.usage.output_tokens}`);
                 const chunk = {
                   id: `chatcmpl-${Date.now()}`,
                   object: "chat.completion.chunk",
@@ -644,6 +669,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
+    const origin = req.headers.get('Origin');
+    const corsHeaders = getCorsHeaders(origin);
     const conversationId = req.nextUrl.searchParams.get("conversation_id");
     return NextResponse.json({
       messages: [],

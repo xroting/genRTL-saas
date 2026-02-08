@@ -103,8 +103,8 @@ export async function verifyAdminAccess(request: Request): Promise<boolean> {
     }
 
     // 获取用户会话
-    const { createSupabaseServerClient } = await import('@/lib/supabase/server');
-    const supabase = createSupabaseServerClient();
+    const { createSupabaseServer } = await import('@/lib/supabase/server');
+    const supabase = await createSupabaseServer();
     
     const { data: { user }, error } = await supabase.auth.getUser();
 

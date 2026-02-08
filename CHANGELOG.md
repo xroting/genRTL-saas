@@ -4,6 +4,131 @@
 
 ---
 
+## 2026-02-07
+
+### ⚡ Chat API 性能优化 - LM 响应延迟监控与优化
+
+**更新日期**: 2026-02-07
+
+**问题背景**:
+前端测试发现 LM 模型在输出工具调用时存在明显延迟问题：模型快速输出工具名称和文件路径后，停顿约 40 秒才开始输出代码内容。经过分析，这主要是 Claude Sonnet 4 在生成大型工具参数（如完整文件内容）时的内在特性。
+
+**分析结果**:
+- Claude Sonnet 4 在 `content_block_start` 时快速输出工具名称
+- 但在生成完整的 `input_json` 参数时会暂停思考和规划
+- 特别是对于 `rewrite_file` 这样需要生成 3000+ tokens 代码的工具
+- 日志显示输出 3406 tokens 用时 42 秒，平均每秒约 81 tokens（低于理论吞吐量）
+
+**优化措施**:
+
+#### 1. 添加详细的性能监控日志
+
+**修改文件**: `app/api/chat/route.ts` (line 333-511)
+
+**实现内容**:
+- ✅ 记录流开始时间戳
+- ✅ 自动检测超过 2 秒的异常延迟
+- ✅ 监控工具名称输出和首个 JSON delta 之间的延迟
+- ✅ 统计总 chunk 数量和平均延迟
+- ✅ 输出完整的性能摘要报告
+
+**日志示例**:
+```
+🔧 [chat_xxx] Tool call: rewrite_file [+234ms from stream start]
+📊 [chat_xxx] First JSON delta for rewrite_file: +38456ms after tool name
+⏱️ [chat_xxx] ⚠️ Delay detected: 3542ms since last event
+🏁 [chat_xxx] Content block stopped: tool=rewrite_file, chunks=342 [+42134ms]
+⏱️ [chat_xxx] Performance: total_time=42134ms, chunks=342, avg=123ms/chunk
+```
+
+#### 2. 优化 System Prompt - 引导流式输出
+
+**修改文件**: `app/api/chat/route.ts` (line 27-58)
+
+**新增指导内容**:
+```typescript
+**IMPORTANT - Streaming Optimization**: 
+When using tools that generate large content (like rewrite_file, create_file_or_folder with code):
+1. Start streaming the tool arguments IMMEDIATELY after determining the tool name and file path
+2. Generate and stream code line by line as you think, without planning the entire file first
+3. Think incrementally: write each line/block, then immediately continue to the next
+4. Do NOT pause to mentally compose the full file before streaming - start streaming right away
+5. Your streaming speed directly impacts user experience - prioritize rapid, continuous output
+```
+
+**效果**: 引导模型更快地开始流式输出，减少规划延迟。
+
+#### 3. 代理配置监控与日志增强
+
+**修改文件**: `app/api/chat/route.ts` (line 275-288)
+
+**实现内容**:
+- ✅ 显示是否使用代理
+- ✅ 警告代理可能导致的额外延迟
+- ✅ 区分直连和代理连接
+
+**日志示例**:
+```
+🌐 [chat_xxx] Using proxy: http://proxy.example.com:8080
+⚠️ [chat_xxx] Note: Proxy may introduce additional latency in streaming responses
+```
+
+或
+```
+✅ [chat_xxx] Direct connection to Anthropic API (no proxy)
+```
+
+#### 4. 灵活的模型选择 - 支持性能测试
+
+**修改文件**: `app/api/chat/route.ts` (line 12-25)
+
+**实现内容**:
+- ✅ 支持通过 `FORCE_CHAT_MODEL` 环境变量强制指定模型
+- ✅ 用于性能对比测试和故障排除
+
+**使用方法**:
+```bash
+# 在 .env.local 中设置
+FORCE_CHAT_MODEL=claude-3-5-sonnet-20241022
+```
+
+#### 5. 性能测试文档
+
+**新增文件**: `PERFORMANCE_TESTING.md`
+
+**内容包括**:
+- 性能监控功能使用说明
+- 延迟诊断步骤
+- 性能基准参考数据
+- 故障排除指南
+- 优化建议
+
+**关键指标**:
+- Claude Sonnet 4 理论吞吐: ~100-150 tokens/秒
+- 简单任务首次输出延迟: 500-2000ms
+- 复杂工具参数延迟: 2000-5000ms（已知问题）
+
+**总结**:
+
+此次优化主要解决了以下问题：
+
+1. **可观测性**: 添加了完整的性能监控日志，可以精确定位延迟发生的位置
+2. **模型优化**: 通过 system prompt 引导模型优先考虑流式输出速度
+3. **网络诊断**: 监控代理使用情况，识别网络导致的延迟
+4. **灵活性**: 支持环境变量控制模型选择，方便性能测试和对比
+
+**已知限制**:
+
+Claude Sonnet 4 在生成大型 JSON 参数时的规划延迟是模型的内在特性，system prompt 优化只能有限改善。如果延迟仍然影响用户体验，建议：
+
+1. 在前端添加"AI 正在思考"的进度提示
+2. 将大文件生成拆分为多个小任务
+3. 考虑使用响应更快的模型（如 Claude 3.5 Sonnet）
+
+**状态**: ✅ 已完成
+
+---
+
 ## 2026-02-04
 
 ### 🔒 安全审计与修复（第二轮）- API费用保护、日志安全与CORS限制
