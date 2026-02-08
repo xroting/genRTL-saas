@@ -4,16 +4,11 @@ import { useState } from 'react';
 import useSWR from 'swr';
 import { Button } from '@/components/ui/button';
 import { 
-  Download, 
-  CreditCard, 
   FileText,
-  ChevronRight,
-  ExternalLink,
-  CheckCircle,
-  Clock,
-  XCircle
+  ExternalLink
 } from 'lucide-react';
 import { customerPortalAction } from '@/lib/payments/actions';
+import { useTranslation } from '@/lib/contexts/language-context';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -39,6 +34,21 @@ interface PaymentMethod {
   is_default: boolean;
 }
 
+interface IncludedUsage {
+  total_tokens: number;
+  total_cost: number;
+  by_model: Record<string, { tokens: number; cost: number }>;
+  period_start: string;
+  period_end: string;
+}
+
+interface OnDemandUsage {
+  total_cost: number;
+  by_type: Record<string, { count: number; cost: number }>;
+  period_start: string;
+  period_end: string;
+}
+
 function formatCurrency(amount: number, currency: string = 'usd'): string {
   const formatter = new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -55,258 +65,273 @@ function formatDate(dateStr: string): string {
   });
 }
 
-function getStatusIcon(status: string) {
-  switch (status) {
-    case 'paid':
-      return <CheckCircle className="h-4 w-4 text-green-400" />;
-    case 'pending':
-      return <Clock className="h-4 w-4 text-yellow-400" />;
-    case 'failed':
-      return <XCircle className="h-4 w-4 text-red-400" />;
-    default:
-      return <Clock className="h-4 w-4 text-gray-400" />;
-  }
-}
-
-function getStatusText(status: string) {
-  switch (status) {
-    case 'paid':
-      return 'Paid';
-    case 'pending':
-      return 'Pending';
-    case 'failed':
-      return 'Failed';
-    case 'draft':
-      return 'Draft';
-    default:
-      return status;
-  }
-}
-
 export default function BillingPage() {
   const { data: billingData, isLoading } = useSWR('/api/dashboard/billing', fetcher);
-  const { data: teamData } = useSWR('/api/team', fetcher);
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<string>('2026年1月');
+  const { t } = useTranslation();
 
   const invoices: Invoice[] = billingData?.invoices || [];
-  const paymentMethods: PaymentMethod[] = billingData?.payment_methods || [];
-  const nextBillingDate = billingData?.next_billing_date;
-  const nextBillingAmount = billingData?.next_billing_amount;
+  const includedUsage: IncludedUsage | null = billingData?.included_usage;
+  const onDemandUsage: OnDemandUsage | null = billingData?.on_demand_usage;
+  const currentPeriodStart = billingData?.current_period_start;
+  const currentPeriodEnd = billingData?.current_period_end;
 
-  // 下载发票
-  const handleDownloadInvoice = async (invoice: Invoice) => {
-    if (!invoice.pdf_url) return;
-    
-    setDownloadingId(invoice.id);
-    try {
-      window.open(invoice.pdf_url, '_blank');
-    } catch (error) {
-      console.error('Failed to download invoice:', error);
-    } finally {
-      setDownloadingId(null);
-    }
+  // 格式化周期日期
+  const formatPeriod = (start?: string, end?: string) => {
+    if (!start || !end) return '';
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    return `${startDate.getFullYear()}年${startDate.getMonth() + 1}月${startDate.getDate()}日 - ${endDate.getFullYear()}年${endDate.getMonth() + 1}月${endDate.getDate()}日`;
   };
 
-  // 获取卡片品牌图标
-  const getCardBrandIcon = (brand?: string) => {
-    // 这里可以返回不同品牌的图标
-    return <CreditCard className="h-5 w-5 text-gray-400" />;
+  // 格式化Token数量（添加万位分隔符）
+  const formatTokens = (tokens: number): string => {
+    return tokens.toLocaleString('zh-CN');
+  };
+
+  // 格式化状态文本
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'paid':
+        return 'Paid';
+      case 'pending':
+        return 'Pending';
+      case 'failed':
+        return 'Failed';
+      case 'draft':
+        return 'Draft';
+      default:
+        return status;
+    }
   };
 
   return (
     <div className="min-h-full bg-[#0a0a0a] text-white p-6 lg:p-8">
-      <h1 className="text-2xl font-semibold mb-8">Billing & Invoices</h1>
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-2xl font-semibold">{t('billingAndInvoices')}</h1>
+        <form action={customerPortalAction}>
+          <Button
+            type="submit"
+            variant="outline"
+            size="sm"
+            className="border-gray-700 text-black font-bold bg-white hover:bg-gray-100"
+          >
+            {t('manageSubscription')}
+          </Button>
+        </form>
+      </div>
 
-      {/* Billing Overview */}
-      <section className="mb-10">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Next Billing */}
-          <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-5">
-            <div className="text-sm text-gray-400 mb-2">Next Billing Date</div>
-            <div className="text-2xl font-bold mb-1">
-              {nextBillingDate ? formatDate(nextBillingDate) : 'No upcoming billing'}
-            </div>
-            {nextBillingAmount && (
-              <div className="text-gray-400">
-                Estimated: {formatCurrency(nextBillingAmount, 'usd')}
-              </div>
-            )}
-          </div>
-
-          {/* Payment Method */}
-          <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-5">
-            <div className="text-sm text-gray-400 mb-2">Payment Method</div>
-            {paymentMethods.length > 0 ? (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {getCardBrandIcon(paymentMethods[0].brand)}
-                  <div>
-                    <div className="font-medium capitalize">
-                      {paymentMethods[0].brand || paymentMethods[0].type} •••• {paymentMethods[0].last4}
-                    </div>
-                    {paymentMethods[0].exp_month && paymentMethods[0].exp_year && (
-                      <div className="text-sm text-gray-400">
-                        Expires {paymentMethods[0].exp_month}/{paymentMethods[0].exp_year}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <form action={customerPortalAction}>
-                  <Button
-                    type="submit"
-                    variant="outline"
-                    size="sm"
-                    className="border-gray-700 text-gray-900 bg-white hover:bg-gray-100 hover:text-gray-900"
-                  >
-                    Update
-                  </Button>
-                </form>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between">
-                <span className="text-gray-500">No payment method on file</span>
-                <form action={customerPortalAction}>
-                  <Button
-                    type="submit"
-                    variant="outline"
-                    size="sm"
-                    className="border-gray-700 text-gray-900 bg-white hover:bg-gray-100 hover:text-gray-900"
-                  >
-                    Add Payment Method
-                  </Button>
-                </form>
-              </div>
-            )}
-          </div>
+      {isLoading ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-400"></div>
         </div>
-      </section>
-
-      {/* Manage Billing */}
-      <section className="mb-10">
-        <h2 className="text-sm text-gray-400 uppercase tracking-wide mb-4">Manage Billing</h2>
-        
-        <div className="bg-gray-900/50 border border-gray-800 rounded-xl divide-y divide-gray-800">
-          <form action={customerPortalAction} className="block">
-            <button type="submit" className="w-full flex items-center justify-between p-5 hover:bg-gray-800/30 transition-colors text-left">
-              <div className="flex items-center gap-3">
-                <CreditCard className="h-5 w-5 text-gray-400" />
-                <div>
-                  <div className="font-medium">Manage Subscription</div>
-                  <div className="text-sm text-gray-400">Update plan, cancel subscription, or change billing cycle</div>
-                </div>
-              </div>
-              <ExternalLink className="h-4 w-4 text-gray-500" />
-            </button>
-          </form>
-          
-          <form action={customerPortalAction} className="block">
-            <button type="submit" className="w-full flex items-center justify-between p-5 hover:bg-gray-800/30 transition-colors text-left">
-              <div className="flex items-center gap-3">
-                <FileText className="h-5 w-5 text-gray-400" />
-                <div>
-                  <div className="font-medium">Update Billing Information</div>
-                  <div className="text-sm text-gray-400">Update billing address and tax information</div>
-                </div>
-              </div>
-              <ExternalLink className="h-4 w-4 text-gray-500" />
-            </button>
-          </form>
-        </div>
-      </section>
-
-      {/* Invoices */}
-      <section>
-        <h2 className="text-sm text-gray-400 uppercase tracking-wide mb-4">Invoices</h2>
-        
-        <div className="bg-gray-900/50 border border-gray-800 rounded-xl">
-          {isLoading ? (
-            <div className="p-8 text-center">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-cyan-400 mx-auto"></div>
+      ) : (
+        <>
+          {/* Included Usage Section */}
+          <section className="mb-8">
+            <h2 className="text-lg font-medium mb-4">{t('includedUsage')}</h2>
+            <div className="text-sm text-gray-400 mb-3">
+              {currentPeriodStart && currentPeriodEnd 
+                ? formatPeriod(currentPeriodStart, currentPeriodEnd)
+                : t('cycleStarting') + ' N/A'
+              }
             </div>
-          ) : invoices.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
-              <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No invoices yet</p>
-              <p className="text-sm mt-1">Invoices will appear here after your first billing cycle</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
+            
+            <div className="bg-gray-900/50 border border-gray-800 rounded-xl overflow-hidden">
               <table className="w-full">
                 <thead>
-                  <tr className="text-sm text-gray-400 border-b border-gray-800">
-                    <th className="text-left py-3 px-4 font-medium">Invoice</th>
-                    <th className="text-left py-3 px-4 font-medium">Date</th>
-                    <th className="text-left py-3 px-4 font-medium">Status</th>
-                    <th className="text-right py-3 px-4 font-medium">Amount</th>
-                    <th className="text-right py-3 px-4 font-medium">Actions</th>
+                  <tr className="border-b border-gray-800">
+                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-400">{t('item')}</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-400">{t('tokens')}</th>
+                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-400">{t('cost')}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {invoices.map((invoice) => (
-                    <tr key={invoice.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
-                      <td className="py-4 px-4">
-                        <span className="text-gray-300 font-mono text-sm">
-                          {invoice.number || `INV-${invoice.id.slice(0, 8)}`}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4 text-gray-300">
-                        {formatDate(invoice.created_at)}
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs ${
-                          invoice.status === 'paid' 
-                            ? 'bg-green-500/10 text-green-400'
-                            : invoice.status === 'pending'
-                            ? 'bg-yellow-500/10 text-yellow-400'
-                            : invoice.status === 'failed'
-                            ? 'bg-red-500/10 text-red-400'
-                            : 'bg-gray-500/10 text-gray-400'
-                        }`}>
-                          {getStatusIcon(invoice.status)}
-                          {getStatusText(invoice.status)}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4 text-right text-gray-300">
-                        {formatCurrency(invoice.amount, invoice.currency)}
-                      </td>
-                      <td className="py-4 px-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          {invoice.hosted_invoice_url && (
-                            <a 
-                              href={invoice.hosted_invoice_url} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                            >
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-gray-400 hover:text-white"
-                              >
-                                <ExternalLink className="h-4 w-4" />
-                              </Button>
-                            </a>
-                          )}
-                          {invoice.pdf_url && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-gray-400 hover:text-white"
-                              onClick={() => handleDownloadInvoice(invoice)}
-                              disabled={downloadingId === invoice.id}
-                            >
-                              <Download className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
+                  <tr className="border-b border-gray-800/50">
+                    <td className="py-3 px-4 text-gray-400 font-medium">{t('includedInProPlus')}</td>
+                    <td className="py-3 px-4"></td>
+                    <td className="py-3 px-4"></td>
+                  </tr>
+                  {includedUsage && Object.keys(includedUsage.by_model).length > 0 ? (
+                    <>
+                      {Object.entries(includedUsage.by_model).map(([model, data]) => (
+                        <tr key={model} className="border-b border-gray-800/30">
+                          <td className="py-3 px-4 pl-8 text-gray-300">{model}</td>
+                          <td className="py-3 px-4 text-right text-gray-300">
+                            {formatTokens(data.tokens)} {t('tokens').toLowerCase()}
+                          </td>
+                          <td className="py-3 px-4 text-right text-gray-300">
+                            US${data.cost.toFixed(2)} <span className="text-gray-500">{t('included')}</span>
+                          </td>
+                        </tr>
+                      ))}
+                      <tr className="bg-gray-800/20">
+                        <td className="py-3 px-4 font-medium">{t('total')}</td>
+                        <td className="py-3 px-4 text-right font-medium">
+                          {formatTokens(includedUsage.total_tokens)}
+                        </td>
+                        <td className="py-3 px-4 text-right font-medium">
+                          US${includedUsage.total_cost.toFixed(2)} <span className="text-gray-500">{t('included')}</span>
+                        </td>
+                      </tr>
+                    </>
+                  ) : (
+                    <tr>
+                      <td colSpan={3} className="py-8 px-4 text-center text-gray-500">
+                        {t('noUsageInPeriod')}
                       </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>
-          )}
-        </div>
-      </section>
+          </section>
+
+          {/* On-Demand Usage Section */}
+          <section className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-medium">{t('onDemandUsage')}</h2>
+              <div className="text-sm text-gray-400">
+                {t('cycleStarting')} {currentPeriodStart ? formatDate(currentPeriodStart) : 'N/A'}
+              </div>
+            </div>
+            
+            {onDemandUsage ? (
+              <>
+                <div className="text-sm text-gray-400 mb-3">
+                  {formatPeriod(onDemandUsage.period_start, onDemandUsage.period_end)}
+                </div>
+                
+                <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-6 mb-4">
+                  <div className="text-3xl font-bold mb-1">
+                    US${onDemandUsage.total_cost.toFixed(2)}
+                  </div>
+                </div>
+
+                <div className="bg-gray-900/50 border border-gray-800 rounded-xl overflow-hidden">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-gray-800">
+                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-400">{t('type')}</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-gray-400">{t('tokens')}</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-gray-400">{t('cost')}</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-gray-400">{t('qty')}</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-gray-400">{t('total')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(onDemandUsage.by_type).map(([type, data]) => (
+                        <tr key={type} className="border-b border-gray-800/30">
+                          <td className="py-3 px-4 text-gray-300 capitalize">{type}</td>
+                          <td className="py-3 px-4 text-right text-gray-300">-</td>
+                          <td className="py-3 px-4 text-right text-gray-300">-</td>
+                          <td className="py-3 px-4 text-right text-gray-300">{data.count}</td>
+                          <td className="py-3 px-4 text-right text-gray-300">
+                            US${data.cost.toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
+                      <tr className="bg-gray-800/20">
+                        <td className="py-3 px-4 font-medium">{t('subtotal')}</td>
+                        <td className="py-3 px-4"></td>
+                        <td className="py-3 px-4"></td>
+                        <td className="py-3 px-4"></td>
+                        <td className="py-3 px-4 text-right font-medium">
+                          US${onDemandUsage.total_cost.toFixed(2)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            ) : (
+              <div className="bg-gray-900/50 border border-gray-800 rounded-xl p-6">
+                <div className="text-3xl font-bold mb-1">US$0.00</div>
+                <div className="text-sm text-gray-400 mt-4">{t('noOnDemandUsage')}</div>
+              </div>
+            )}
+          </section>
+
+          {/* Invoices Section */}
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-medium">{t('invoices')}</h2>
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="bg-gray-900 border border-gray-800 rounded-lg px-3 py-1.5 text-sm text-gray-300 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              >
+                <option>2026年1月</option>
+                <option>2025年12月</option>
+                <option>2025年11月</option>
+              </select>
+            </div>
+            
+            <div className="bg-gray-900/50 border border-gray-800 rounded-xl">
+              {isLoading ? (
+                <div className="p-8 text-center">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-cyan-400 mx-auto"></div>
+                </div>
+              ) : invoices.length === 0 ? (
+                <div className="p-8 text-center text-gray-500">
+                  <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>{t('noInvoicesYet')}</p>
+                  <p className="text-sm mt-1">{t('invoicesWillAppearAfterFirstBillingCycle')}</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="text-sm text-gray-400 border-b border-gray-800">
+                        <th className="text-left py-3 px-4 font-medium">{t('date')}</th>
+                        <th className="text-left py-3 px-4 font-medium">{t('description')}</th>
+                        <th className="text-left py-3 px-4 font-medium">{t('status')}</th>
+                        <th className="text-right py-3 px-4 font-medium">{t('amount')}</th>
+                        <th className="text-right py-3 px-4 font-medium">{t('invoice')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invoices.map((invoice) => (
+                        <tr key={invoice.id} className="border-b border-gray-800/50 hover:bg-gray-800/30">
+                          <td className="py-4 px-4 text-gray-300">
+                            {formatDate(invoice.created_at)}
+                          </td>
+                          <td className="py-4 px-4 text-gray-300">
+                            {invoice.number || 'Subscription Payment'}
+                          </td>
+                          <td className="py-4 px-4">
+                            <span className="capitalize text-gray-300">
+                              {getStatusText(invoice.status)}
+                            </span>
+                          </td>
+                          <td className="py-4 px-4 text-right text-gray-300">
+                            {formatCurrency(invoice.amount, invoice.currency)}
+                          </td>
+                          <td className="py-4 px-4 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              {invoice.hosted_invoice_url && (
+                                <a 
+                                  href={invoice.hosted_invoice_url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-cyan-400 hover:text-cyan-300 text-sm flex items-center gap-1"
+                                >
+                                  {t('view')}
+                                  <ExternalLink className="h-3 w-3" />
+                                </a>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </section>
+        </>
+      )}
     </div>
   );
 }
